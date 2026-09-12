@@ -7,16 +7,7 @@ __pycache__/
 node_modules/
 .next/
 
-data/local/
-data/raw/
-data/processed/
-
 storage/*
 !storage/.gitkeep
 
-properties.csv
-properties_cleaned.csv
-properties_cleaned_singlish.csv
-
 *.dxf
-

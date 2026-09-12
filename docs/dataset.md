@@ -16,11 +16,13 @@ By default, the cleaned dataset is expected at `data/processed/properties_cleane
 
 ## Folder Layout
 
-- `data/raw/properties.csv`: original dataset, approximately 203,874 rows, local-only.
-- `data/processed/properties_cleaned.csv`: cleaned dataset, approximately 202,309 rows, local-only.
+- `data/raw/properties.csv`: original dataset, approximately 203,874 rows.
+- `data/processed/properties_cleaned.csv`: cleaned dataset, approximately 202,309 rows.
 - `data/sample/properties_sample.csv`: Git sample, approximately 500 rows, allowed in Git.
-- `data/local/properties_dev.csv`: development sample, approximately 10,000 rows, local-only.
+- `data/local/properties_dev.csv`: development sample, approximately 10,000 rows.
 - `data/knowledge/`: future Agent 3 knowledge-base files; keep only `.gitkeep` for now.
+
+The large raw, processed, and local CSV files should be tracked with Git LFS because they exceed normal GitHub file-size limits.
 
 ## Sampling
 

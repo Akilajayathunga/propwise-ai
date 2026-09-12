@@ -46,13 +46,13 @@ docs/       Architecture, contracts, dataset, and team documents
 
 ## Dataset Folders
 
-- `data/raw/`: local-only raw source dataset, `properties.csv`, approximately 203,874 rows.
-- `data/processed/`: local-only cleaned dataset, `properties_cleaned.csv`, approximately 202,309 rows.
+- `data/raw/`: raw source dataset, `properties.csv`, approximately 203,874 rows.
+- `data/processed/`: cleaned dataset, `properties_cleaned.csv`, approximately 202,309 rows.
 - `data/sample/`: Git-trackable 500-row sample generated from the cleaned dataset.
-- `data/local/`: ignored local development sample, usually `properties_dev.csv`.
+- `data/local/`: development sample, usually `properties_dev.csv`.
 - `data/knowledge/`: Git-trackable placeholder for future Agent 3 knowledge files.
 
-Full datasets and local development samples stay out of Git. The Git sample is only for tests, examples, and demonstrations.
+Large CSV datasets should be committed through Git LFS. The Git sample is still useful for tests, examples, and demonstrations.
 
 ## Backend Setup
 
