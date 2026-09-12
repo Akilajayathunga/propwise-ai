@@ -55,6 +55,7 @@ NUMBER_WORDS = {
     "දහනවය": 19,
     "විස්ස": 20,
     "තිහ": 30,
+    "තිස්": 30,
     "හතළිහ": 40,
     "පනහ": 50,
 }
@@ -63,7 +64,7 @@ NUMBER_WORD_PATTERN = (
     r"zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|"
     r"fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|"
     r"eighty|ninety|එක|එක්|දෙක|දෙ|තුන|හතර|පහ|හය|හත|අට|නවය|දහය|එකොළහ|දොළහ|දහතුන|"
-    r"දාහතර|පහළොව|දහසය|දහහත|දහඅට|දහනවය|විස්ස|තිහ|හතළිහ|පනහ"
+    r"දාහතර|පහළොව|දහසය|දහහත|දහඅට|දහනවය|විස්ස|තිහ|තිස්|හතළිහ|පනහ"
 )
 NUMBER_PATTERN = rf"(?P<number>\d+(?:\.\d+)?|{NUMBER_WORD_PATTERN})"
 
@@ -179,7 +180,7 @@ def parse_money(text: str) -> list[tuple[int, int, int]]:
     sinhala_unit_first_pattern = re.compile(
         rf"(?:රුපියල්\s*)?"
         r"(?P<unit>මිලියන|දහස|ලක්ෂ)\s*"
-        rf"(?P<amount>\d+(?:,\d{{3}})*(?:\.\d+)?|{NUMBER_WORD_PATTERN})(?:කට|ක්|ක|ට)?",
+        rf"(?P<amount>\d+(?:,\d{{3}})*(?:\.\d+)?|(?:{NUMBER_WORD_PATTERN})(?:[-\s]+(?:{NUMBER_WORD_PATTERN}))*)(?:කට|ක්|ක|ට)?",
         re.IGNORECASE,
     )
     for match in sinhala_unit_first_pattern.finditer(text):

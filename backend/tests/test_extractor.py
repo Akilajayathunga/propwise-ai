@@ -14,6 +14,7 @@ def test_parse_sri_lankan_money_expressions() -> None:
     assert parse_money("below thirteen million rupees")[0][2] == 13_000_000
     assert parse_money("රුපියල් මිලියන තුනකට අඩුවෙන්")[0][2] == 3_000_000
     assert parse_money("රුපියල් ලක්ෂ දෙකකට අඩුවෙන්")[0][2] == 200_000
+    assert parse_money("රුපියල් මිලියන තිස් පහකට අඩුවෙන්")[0][2] == 35_000_000
 
 
 def test_extract_buy_property_requirements() -> None:
@@ -74,6 +75,20 @@ def test_extract_full_sinhala_buy_property_requirements() -> None:
     assert data["property_type"] == PropertyType.HOUSE
     assert data["listing_type"] == ListingType.SALE
     assert data["bedrooms"] == 5
+
+
+def test_extract_full_sinhala_compound_budget_requirements() -> None:
+    data = extract_requirements(
+        "මට කොට්ටාව අවට රුපියල් මිලියන තිස් පහකට අඩුවෙන් කාමර තුනක නිවසක් ගන්න ඕන.",
+        Intent.BUY_PROPERTY,
+    )
+
+    assert data["location"] == "Kottawa"
+    assert data["district"] == "Colombo"
+    assert data["maximum_budget_lkr"] == 35_000_000
+    assert data["property_type"] == PropertyType.HOUSE
+    assert data["listing_type"] == ListingType.SALE
+    assert data["bedrooms"] == 3
 
 
 def test_extract_full_sinhala_preferences_and_district() -> None:
