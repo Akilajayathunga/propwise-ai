@@ -67,6 +67,20 @@ def test_agent1_full_sinhala_buy_property_pipeline() -> None:
     assert parsed.bedrooms == 5
 
 
+def test_agent1_full_sinhala_preferences_and_district_pipeline() -> None:
+    parsed = RequirementUnderstandingAgent().parse(
+        "මට කොට්ටාව අවට නිහඬ පරිසරයක, පහසු සහ සුවපහසු නිවසක් ගන්න ඕන. රුපියල් මිලියන පහකට අඩුවෙන්."
+    ).requirements
+
+    assert parsed.intent == Intent.BUY_PROPERTY
+    assert parsed.location == "Kottawa"
+    assert parsed.district == "Colombo"
+    assert parsed.maximum_budget_lkr == 5_000_000
+    assert parsed.property_type == "house"
+    assert parsed.listing_type == "sale"
+    assert parsed.preferences == ["quiet environment", "comfortable environment", "convenient access"]
+
+
 def test_agent1_full_sinhala_rent_property_pipeline() -> None:
     parsed = RequirementUnderstandingAgent().parse(
         "මට කොළඹ රුපියල් ලක්ෂ දෙකකට අඩුවෙන් මහල් නිවාසයක් කුලියට ඕන."

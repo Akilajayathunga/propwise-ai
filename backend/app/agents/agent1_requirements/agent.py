@@ -16,7 +16,6 @@ class RequirementUnderstandingAgent:
         requirements = ParsedRequirements(
             original_query=cleaned_query,
             intent=intent,
-            preferences=[],
             **extracted,
         )
         validated = validate_requirements(requirements)
@@ -28,4 +27,3 @@ class RequirementUnderstandingAgent:
                 "llm_used": False,
             },
         )
-

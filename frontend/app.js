@@ -38,7 +38,7 @@ function formatValue(value) {
 
 function setLoading(isLoading) {
   submitButton.disabled = isLoading;
-  submitButton.textContent = isLoading ? "Parsing..." : "Parse requirements";
+  submitButton.textContent = isLoading ? "Detecting..." : "Send";
 }
 
 function showError(errorMessage) {
@@ -75,13 +75,6 @@ function showResult(result) {
   fieldGrid.classList.remove("hidden");
   jsonBlock.classList.remove("hidden");
 }
-
-document.querySelectorAll("[data-example]").forEach((button) => {
-  button.addEventListener("click", () => {
-    queryInput.value = button.dataset.example;
-    queryInput.focus();
-  });
-});
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();

@@ -74,6 +74,13 @@ KNOWN_SRI_LANKAN_LOCATIONS = {
     "මාලඹේ": "Malabe",
 }
 
+LOCATION_DISTRICTS = {
+    "Colombo": "Colombo",
+    "Kottawa": "Colombo",
+    "Maharagama": "Colombo",
+    "Malabe": "Colombo",
+}
+
 
 def word_or_number(value: str) -> float:
     normalized = value.lower()
@@ -237,6 +244,12 @@ def extract_location(text: str) -> str | None:
     return " ".join(parts) or None
 
 
+def infer_district(location: str | None) -> str | None:
+    if location is None:
+        return None
+    return LOCATION_DISTRICTS.get(location)
+
+
 def extract_count(text: str, nouns: tuple[str, ...]) -> int | None:
     noun_pattern = "|".join(re.escape(noun) for noun in nouns)
     patterns = [
@@ -337,9 +350,24 @@ def extract_text_preferences(text: str) -> dict[str, str | None]:
     return {"preferred_style": preferred_style, "finish_level": finish_level}
 
 
+def extract_preferences(text: str) -> list[str]:
+    preference_patterns = [
+        (r"\b(quiet|silent|peaceful|calm)\b|නිහඬ|නිස්කලංක", "quiet environment"),
+        (r"\bcomfortable\b|සුවපහසු", "comfortable environment"),
+        (r"\bconvenient|easy access\b|පහසු", "convenient access"),
+    ]
+    preferences = []
+    for pattern, preference in preference_patterns:
+        if re.search(pattern, text, re.IGNORECASE) and preference not in preferences:
+            preferences.append(preference)
+    return preferences
+
+
 def extract_requirements(query: str, intent: Intent) -> dict[str, object]:
+    location = extract_location(query)
     data: dict[str, object] = {
-        "location": extract_location(query),
+        "location": location,
+        "district": infer_district(location),
         "property_type": extract_property_type(query, intent),
         "listing_type": extract_listing_type(query, intent),
         "bedrooms": extract_count(query, ("bedroom", "bedrooms", "bed", "කාමර", "කාමරය")),
@@ -348,6 +376,7 @@ def extract_requirements(query: str, intent: Intent) -> dict[str, object]:
         "minimum_house_size_sqft": extract_house_size(query),
         "floors": extract_floors(query),
         "parking_spaces": extract_count(query, ("car parking", "cars", "parking spaces", "parking")),
+        "preferences": extract_preferences(query),
     }
     data.update(extract_budget(query))
     data.update(extract_flags(query))

@@ -76,6 +76,20 @@ def test_extract_full_sinhala_buy_property_requirements() -> None:
     assert data["bedrooms"] == 5
 
 
+def test_extract_full_sinhala_preferences_and_district() -> None:
+    data = extract_requirements(
+        "මට කොට්ටාව අවට නිහඬ පරිසරයක, පහසු සහ සුවපහසු නිවසක් ගන්න ඕන. රුපියල් මිලියන පහකට අඩුවෙන්.",
+        Intent.BUY_PROPERTY,
+    )
+
+    assert data["location"] == "Kottawa"
+    assert data["district"] == "Colombo"
+    assert data["maximum_budget_lkr"] == 5_000_000
+    assert data["property_type"] == PropertyType.HOUSE
+    assert data["listing_type"] == ListingType.SALE
+    assert data["preferences"] == ["quiet environment", "comfortable environment", "convenient access"]
+
+
 def test_extract_full_sinhala_rent_property_requirements() -> None:
     data = extract_requirements(
         "මට කොළඹ රුපියල් ලක්ෂ දෙකකට අඩුවෙන් මහල් නිවාසයක් කුලියට ඕන.",
