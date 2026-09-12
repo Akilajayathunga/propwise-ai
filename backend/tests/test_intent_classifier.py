@@ -13,12 +13,27 @@ def test_sinhala_singlish_buy_property_intent() -> None:
     )
 
 
+def test_full_sinhala_buy_property_intent() -> None:
+    assert classify_intent("මට මහරගම අවට රුපියල් මිලියන තුනකට අඩුවෙන් කාමර පහක නිවසක් ගන්න ඕන.") == Intent.BUY_PROPERTY
+
+
 def test_rent_property_intent() -> None:
     assert classify_intent("I want an apartment for rent in Colombo below Rs. 150,000 per month.") == Intent.RENT_PROPERTY
 
 
+def test_full_sinhala_rent_property_intent() -> None:
+    assert classify_intent("මට කොළඹ රුපියල් ලක්ෂ දෙකකට අඩුවෙන් මහල් නිවාසයක් කුලියට ඕන.") == Intent.RENT_PROPERTY
+
+
 def test_plan_house_intent() -> None:
     assert classify_intent("I have 15 perches in Malabe and want to build a four-bedroom two-storey house.") == Intent.PLAN_HOUSE
+
+
+def test_full_sinhala_plan_house_intent() -> None:
+    assert (
+        classify_intent("මට මාලඹේ පර්චස් පහළොවක ඉඩමක් තියෙනවා, කාමර හතරක මහල් දෙකක නිවසක් හදන්න ඕන.")
+        == Intent.PLAN_HOUSE
+    )
 
 
 def test_land_and_house_intent() -> None:
