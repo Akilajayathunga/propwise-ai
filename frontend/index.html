@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PropWise AI - Agent 1 Tester</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="workspace">
+      <section class="query-panel">
+        <p class="eyebrow">Agent 1</p>
+        <h1>Requirement & Intent Understanding</h1>
+
+        <form id="requirements-form" class="query-form">
+          <label for="query">Property request</label>
+          <textarea id="query" name="query" maxlength="2000" rows="7" placeholder="Enter your property request"></textarea>
+
+          <button id="submit-button" class="submit-button" type="submit">Send</button>
+        </form>
+      </section>
+
+      <section class="result-panel" aria-live="polite">
+        <div class="result-header">
+          <div>
+            <p class="eyebrow">Captured Output</p>
+            <h2 id="intent-title">Waiting for input</h2>
+          </div>
+          <span id="confidence" class="confidence hidden"></span>
+        </div>
+
+        <p id="message" class="empty-text">Submit a request to see the captured intent and extracted fields.</p>
+        <div id="field-grid" class="field-grid hidden"></div>
+
+        <details id="json-block" class="json-block hidden">
+          <summary>JSON contract</summary>
+          <pre id="json-output"></pre>
+        </details>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
