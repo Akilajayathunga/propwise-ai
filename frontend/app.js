@@ -89,6 +89,7 @@ form.addEventListener("submit", async (event) => {
   message.className = "empty-text";
   message.textContent = "Parsing your request...";
   message.classList.remove("hidden");
+  document.getElementById("properties-panel").classList.add("hidden");
 
   try {
     const response = await fetch(`${apiBaseUrl}/api/v1/requirements/parse`, {
@@ -100,13 +101,83 @@ form.addEventListener("submit", async (event) => {
     });
 
     if (!response.ok) {
-      throw new Error(`Request failed with status ${response.status}`);
+      throw new Error(`Agent 1 request failed with status ${response.status}`);
     }
 
-    showResult(await response.json());
+    const requirements = await response.json();
+    showResult(requirements);
+
+    // Call Agent 2
+    message.className = "empty-text";
+    message.textContent = "Searching properties...";
+    message.classList.remove("hidden");
+
+    const searchResponse = await fetch(`${apiBaseUrl}/api/v1/property-search`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ requirements: requirements, top_n: 10 }),
+    });
+
+    if (!searchResponse.ok) {
+      throw new Error(`Agent 2 request failed with status ${searchResponse.status}`);
+    }
+
+    const searchResult = await searchResponse.json();
+    showProperties(searchResult);
+    message.classList.add("hidden");
+
   } catch (error) {
     showError(error instanceof Error ? error.message : "Unable to reach the backend.");
   } finally {
     setLoading(false);
   }
 });
+
+function showProperties(result) {
+  const panel = document.getElementById("properties-panel");
+  const list = document.getElementById("property-list");
+  const count = document.getElementById("property-count");
+  const analysisDiv = document.getElementById("market-analysis");
+
+  panel.classList.remove("hidden");
+  count.textContent = `${result.returned} of ${result.total_found} results`;
+
+  if (result.warnings && result.warnings.length > 0) {
+    analysisDiv.innerHTML = `<strong>⚠️ Note:</strong> ${result.warnings.join(" ")}`;
+    analysisDiv.classList.remove("hidden");
+  } else {
+    analysisDiv.classList.add("hidden");
+  }
+
+  list.innerHTML = "";
+
+  if (result.results.length === 0) {
+    list.innerHTML = `<p class="empty-text">No properties found matching these requirements.</p>`;
+    return;
+  }
+
+  result.results.forEach((p) => {
+    const card = document.createElement("div");
+    card.className = "property-card";
+
+    let priceText = "Price on request";
+    if (p.listing_type === "sale" && p.sale_total_price_lkr) {
+      priceText = `LKR ${p.sale_total_price_lkr.toLocaleString()}`;
+    } else if (p.listing_type === "rent" && p.rent_monthly_lkr) {
+      priceText = `LKR ${p.rent_monthly_lkr.toLocaleString()} / month`;
+    }
+
+    card.innerHTML = `
+      <h3>${p.title}</h3>
+      <div class="property-meta">
+        <span>📍 ${p.location || "Unknown"} ${p.district ? `(${p.district})` : ""}</span>
+        <span>🛏️ ${p.bedrooms || 0} Beds</span>
+        <span class="property-score">⭐ Score: ${p.score.toFixed(2)}</span>
+      </div>
+      <div class="property-price">${priceText}</div>
+    `;
+    list.appendChild(card);
+  });
+}

@@ -215,3 +215,67 @@ pre {
     font-size: 28px;
   }
 }
+
+
+/* Agent 2 Properties List */
+.properties-panel {
+  grid-column: 1 / -1;
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  margin-top: 10px;
+}
+
+.property-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.property-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: #fbfcfb;
+}
+
+.property-card h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.property-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.property-price {
+  font-weight: 700;
+  color: var(--accent-dark);
+  font-size: 18px;
+}
+
+.property-score {
+  background: var(--soft);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--accent-dark);
+}
+
+.market-analysis {
+  background: var(--soft);
+  color: var(--accent-dark);
+  padding: 12px;
+  border-radius: 8px;
+  margin-top: 16px;
+  font-size: 14px;
+}
