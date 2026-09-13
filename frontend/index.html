@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PropWise AI - Agent 1 Tester</title>
+    <title>PropWise AI - Property Assistant</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main class="workspace">
       <section class="query-panel">
-        <p class="eyebrow">Agent 1</p>
-        <h1>Requirement & Intent Understanding</h1>
+        <p class="eyebrow">PropWise AI</p>
+        <h1>Property Assistant</h1>
 
         <form id="requirements-form" class="query-form">
           <label for="query">Property request</label>
@@ -49,6 +49,25 @@
         
         <div id="market-analysis" class="market-analysis hidden"></div>
         <div id="property-list" class="property-list"></div>
+      </section>
+
+      <section class="planning-panel hidden" id="planning-panel" aria-live="polite">
+        <div class="result-header">
+          <div>
+            <p class="eyebrow">Agent 3</p>
+            <h2>Conceptual Plan & Budget</h2>
+          </div>
+          <span id="planning-score" class="confidence">0%</span>
+        </div>
+
+        <div id="budget-grid" class="field-grid"></div>
+        <div id="planning-warnings" class="market-analysis hidden"></div>
+        <div id="design-preview" class="design-preview"></div>
+
+        <details id="planning-json-block" class="json-block">
+          <summary>Planning JSON</summary>
+          <pre id="planning-json-output"></pre>
+        </details>
       </section>
     </main>
 

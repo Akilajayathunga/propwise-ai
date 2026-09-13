@@ -1,0 +1,13 @@
+{
+  "verified_rates_available": false,
+  "currency": "LKR",
+  "unit": "sqft",
+  "source": null,
+  "last_verified": null,
+  "rates_lkr_per_sqft": {
+    "low": null,
+    "expected": null,
+    "high": null
+  },
+  "note": "Schema placeholder only. Do not use until verified construction rates are supplied."
+}

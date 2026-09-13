@@ -9,6 +9,8 @@ const message = document.querySelector("#message");
 const fieldGrid = document.querySelector("#field-grid");
 const jsonBlock = document.querySelector("#json-block");
 const jsonOutput = document.querySelector("#json-output");
+const propertiesPanel = document.querySelector("#properties-panel");
+const planningPanel = document.querySelector("#planning-panel");
 
 const fields = [
   ["Intent", "intent"],
@@ -38,7 +40,7 @@ function formatValue(value) {
 
 function setLoading(isLoading) {
   submitButton.disabled = isLoading;
-  submitButton.textContent = isLoading ? "Detecting..." : "Send";
+  submitButton.textContent = isLoading ? "Working..." : "Send";
 }
 
 function showError(errorMessage) {
@@ -46,6 +48,8 @@ function showError(errorMessage) {
   confidence.classList.add("hidden");
   fieldGrid.classList.add("hidden");
   jsonBlock.classList.add("hidden");
+  propertiesPanel.classList.add("hidden");
+  planningPanel.classList.add("hidden");
   message.className = "error-text";
   message.textContent = errorMessage;
 }
@@ -89,7 +93,8 @@ form.addEventListener("submit", async (event) => {
   message.className = "empty-text";
   message.textContent = "Parsing your request...";
   message.classList.remove("hidden");
-  document.getElementById("properties-panel").classList.add("hidden");
+  propertiesPanel.classList.add("hidden");
+  planningPanel.classList.add("hidden");
 
   try {
     const response = await fetch(`${apiBaseUrl}/api/v1/requirements/parse`, {
@@ -107,25 +112,49 @@ form.addEventListener("submit", async (event) => {
     const requirements = await response.json();
     showResult(requirements);
 
-    // Call Agent 2
-    message.className = "empty-text";
-    message.textContent = "Searching properties...";
-    message.classList.remove("hidden");
+    let searchResult = null;
+    if (shouldSearchProperties(requirements.intent)) {
+      message.className = "empty-text";
+      message.textContent = "Searching properties...";
+      message.classList.remove("hidden");
 
-    const searchResponse = await fetch(`${apiBaseUrl}/api/v1/property-search`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ requirements: requirements, top_n: 10 }),
-    });
+      const searchResponse = await fetch(`${apiBaseUrl}/api/v1/property-search`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ requirements: requirements, top_n: 10 }),
+      });
 
-    if (!searchResponse.ok) {
-      throw new Error(`Agent 2 request failed with status ${searchResponse.status}`);
+      if (!searchResponse.ok) {
+        throw new Error(`Agent 2 request failed with status ${searchResponse.status}`);
+      }
+
+      searchResult = await searchResponse.json();
+      showProperties(searchResult);
     }
 
-    const searchResult = await searchResponse.json();
-    showProperties(searchResult);
+    if (shouldGeneratePlan(requirements.intent)) {
+      message.className = "empty-text";
+      message.textContent = "Generating conceptual plan...";
+      message.classList.remove("hidden");
+
+      const planningRequest = buildPlanningRequest(requirements, searchResult);
+      const planningResponse = await fetch(`${apiBaseUrl}/api/v1/planning/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(planningRequest),
+      });
+
+      if (!planningResponse.ok) {
+        throw new Error(`Agent 3 request failed with status ${planningResponse.status}`);
+      }
+
+      showPlanning(await planningResponse.json());
+    }
+
     message.classList.add("hidden");
 
   } catch (error) {
@@ -135,21 +164,64 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
+function shouldSearchProperties(intent) {
+  return ["BUY_PROPERTY", "RENT_PROPERTY", "BUY_LAND", "LAND_AND_HOUSE", "COMPARE_PROPERTIES"].includes(intent);
+}
+
+function shouldGeneratePlan(intent) {
+  return ["PLAN_HOUSE", "LAND_AND_HOUSE"].includes(intent);
+}
+
+function buildPlanningRequest(requirements, searchResult) {
+  const selectedProperty =
+    requirements.intent === "LAND_AND_HOUSE" && searchResult && searchResult.results.length > 0
+      ? searchResult.results[0]
+      : null;
+
+  return {
+    intent: requirements.intent,
+    selected_property: selectedProperty,
+    location: requirements.location,
+    land_size_perches: requirements.land_size_perches,
+    total_project_budget_lkr: requirements.total_project_budget_lkr,
+    construction_budget_lkr: requirements.construction_budget_lkr,
+    bedrooms: requirements.bedrooms,
+    bathrooms: requirements.bathrooms,
+    floors: requirements.floors,
+    parking_spaces: requirements.parking_spaces,
+    preferred_style: requirements.preferred_style,
+    finish_level: requirements.finish_level,
+    office_required: requirements.office_required,
+    balcony_required: requirements.balcony_required,
+    family_lounge_required: requirements.family_lounge_required,
+    utility_room_required: requirements.utility_room_required,
+    other_requirements: requirements.preferences || [],
+    candidate_count: 10,
+  };
+}
+
 function showProperties(result) {
-  const panel = document.getElementById("properties-panel");
   const list = document.getElementById("property-list");
   const count = document.getElementById("property-count");
   const analysisDiv = document.getElementById("market-analysis");
 
-  panel.classList.remove("hidden");
+  propertiesPanel.classList.remove("hidden");
   count.textContent = `${result.returned} of ${result.total_found} results`;
 
+  const priceStats = result.analysis && result.analysis.price_stats ? result.analysis.price_stats : {};
+  const analysisParts = [
+    `Median: ${formatMoney(priceStats.median_price)}`,
+    `Min: ${formatMoney(priceStats.min_price)}`,
+    `Max: ${formatMoney(priceStats.max_price)}`,
+    `Budget fit: ${formatValue(result.analysis ? result.analysis.budget_fit_pct : null)}%`,
+    `Dataset size: ${formatValue(result.metadata ? result.metadata.dataset_size : null)}`,
+  ];
+
   if (result.warnings && result.warnings.length > 0) {
-    analysisDiv.innerHTML = `<strong>⚠️ Note:</strong> ${result.warnings.join(" ")}`;
-    analysisDiv.classList.remove("hidden");
-  } else {
-    analysisDiv.classList.add("hidden");
+    analysisParts.push(`Note: ${result.warnings.join(" ")}`);
   }
+  analysisDiv.textContent = analysisParts.join(" | ");
+  analysisDiv.classList.remove("hidden");
 
   list.innerHTML = "";
 
@@ -162,22 +234,114 @@ function showProperties(result) {
     const card = document.createElement("div");
     card.className = "property-card";
 
-    let priceText = "Price on request";
-    if (p.listing_type === "sale" && p.sale_total_price_lkr) {
-      priceText = `LKR ${p.sale_total_price_lkr.toLocaleString()}`;
-    } else if (p.listing_type === "rent" && p.rent_monthly_lkr) {
-      priceText = `LKR ${p.rent_monthly_lkr.toLocaleString()} / month`;
-    }
+    const title = document.createElement("h3");
+    title.textContent = p.title || p.listing_id || "Property";
 
-    card.innerHTML = `
-      <h3>${p.title}</h3>
-      <div class="property-meta">
-        <span>📍 ${p.location || "Unknown"} ${p.district ? `(${p.district})` : ""}</span>
-        <span>🛏️ ${p.bedrooms || 0} Beds</span>
-        <span class="property-score">⭐ Score: ${p.score.toFixed(2)}</span>
-      </div>
-      <div class="property-price">${priceText}</div>
-    `;
+    const meta = document.createElement("div");
+    meta.className = "property-meta";
+    [
+      `${p.location || "Unknown"} ${p.district ? `(${p.district})` : ""}`,
+      `${formatValue(p.property_type)} / ${formatValue(p.listing_type)}`,
+      `${formatValue(p.bedrooms)} beds`,
+      `${formatValue(p.bathrooms)} baths`,
+      `${formatValue(p.land_size_perches)} perches`,
+      `Score ${Number(p.score || 0).toFixed(2)}`,
+    ].forEach((text) => {
+      const span = document.createElement("span");
+      span.textContent = text;
+      meta.appendChild(span);
+    });
+
+    const price = document.createElement("div");
+    price.className = "property-price";
+    price.textContent =
+      p.listing_type === "rent" ? `${formatMoney(p.rent_monthly_lkr)} / month` : formatMoney(p.sale_total_price_lkr || p.price_lkr);
+
+    card.append(title, meta, price);
     list.appendChild(card);
   });
+}
+
+function showPlanning(result) {
+  const score = document.querySelector("#planning-score");
+  const budgetGrid = document.querySelector("#budget-grid");
+  const warnings = document.querySelector("#planning-warnings");
+  const preview = document.querySelector("#design-preview");
+  const jsonOutput = document.querySelector("#planning-json-output");
+
+  planningPanel.classList.remove("hidden");
+  score.textContent = result.layout_score === null || result.layout_score === undefined ? "No score" : `${Math.round(result.layout_score)}%`;
+
+  const budgetFields = [
+    ["Plan ID", result.plan_id],
+    ["Constraints", result.constraints_satisfied ? "Satisfied" : "Not satisfied"],
+    ["Exact site fit", result.exact_site_fit_verified ? "Verified" : "Conceptual only"],
+    ["Floor area", result.estimated_floor_area_sqft ? `${formatValue(result.estimated_floor_area_sqft)} sqft` : null],
+    ["Remaining construction budget", formatMoney(result.remaining_construction_budget_lkr)],
+    ["Budget status", result.budget_status],
+    ["Cost estimate available", result.budget_estimation_available ? "Yes" : "No"],
+    ["Selected land price", result.selected_property ? formatMoney(result.selected_property.land_price_lkr) : null],
+  ];
+
+  budgetGrid.innerHTML = "";
+  budgetFields.forEach(([label, value]) => {
+    const item = document.createElement("div");
+    item.className = "field-item";
+    const title = document.createElement("span");
+    title.textContent = label;
+    const strong = document.createElement("strong");
+    strong.textContent = formatValue(value);
+    item.append(title, strong);
+    budgetGrid.appendChild(item);
+  });
+
+  if (result.warnings && result.warnings.length) {
+    warnings.textContent = result.warnings.join(" ");
+    warnings.classList.remove("hidden");
+  } else {
+    warnings.classList.add("hidden");
+  }
+
+  preview.innerHTML = "";
+  const svgUrl = firstPlanUrl(result.files && result.files.svg ? result.files.svg[0] : null);
+  if (svgUrl) {
+    const image = document.createElement("img");
+    image.src = svgUrl;
+    image.alt = "Generated conceptual floor plan";
+    preview.appendChild(image);
+  }
+
+  const links = document.createElement("div");
+  links.className = "file-links";
+  [
+    ["Plan JSON", result.files ? result.files.json : null],
+    ["DXF", result.files ? result.files.dxf : null],
+    ["PNG", result.files && result.files.png ? result.files.png[0] : null],
+    ["SVG", result.files && result.files.svg ? result.files.svg[0] : null],
+  ].forEach(([label, path]) => {
+    const url = firstPlanUrl(path);
+    if (!url) return;
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = label;
+    links.appendChild(link);
+  });
+  preview.appendChild(links);
+  jsonOutput.textContent = JSON.stringify(result, null, 2);
+}
+
+function firstPlanUrl(path) {
+  if (!path) return "";
+  const normalized = String(path).replaceAll("\\", "/");
+  const marker = "storage/plans/";
+  const index = normalized.indexOf(marker);
+  if (index === -1) return "";
+  return `${apiBaseUrl}/plans/${normalized.slice(index + marker.length)}`;
+}
+
+function formatMoney(value) {
+  if (value === null || value === undefined) return "Not provided";
+  return `LKR ${Number(value).toLocaleString("en-LK")}`;
 }

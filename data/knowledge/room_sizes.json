@@ -1,0 +1,68 @@
+{
+  "note": "Conceptual prototype planning assumptions only. These are not official Sri Lankan statutory standards.",
+  "entrance": {
+    "minimum_area_sqft": 35,
+    "preferred_area_sqft": 55,
+    "maximum_area_sqft": 90
+  },
+  "master_bedroom": {
+    "minimum_area_sqft": 140,
+    "preferred_area_sqft": 180,
+    "maximum_area_sqft": 260
+  },
+  "bedroom": {
+    "minimum_area_sqft": 100,
+    "preferred_area_sqft": 130,
+    "maximum_area_sqft": 190
+  },
+  "living_room": {
+    "minimum_area_sqft": 160,
+    "preferred_area_sqft": 220,
+    "maximum_area_sqft": 360
+  },
+  "dining": {
+    "minimum_area_sqft": 100,
+    "preferred_area_sqft": 140,
+    "maximum_area_sqft": 220
+  },
+  "kitchen": {
+    "minimum_area_sqft": 100,
+    "preferred_area_sqft": 140,
+    "maximum_area_sqft": 220
+  },
+  "bathroom": {
+    "minimum_area_sqft": 35,
+    "preferred_area_sqft": 50,
+    "maximum_area_sqft": 80
+  },
+  "office": {
+    "minimum_area_sqft": 80,
+    "preferred_area_sqft": 110,
+    "maximum_area_sqft": 160
+  },
+  "family_lounge": {
+    "minimum_area_sqft": 120,
+    "preferred_area_sqft": 170,
+    "maximum_area_sqft": 260
+  },
+  "utility": {
+    "minimum_area_sqft": 45,
+    "preferred_area_sqft": 70,
+    "maximum_area_sqft": 110
+  },
+  "balcony": {
+    "minimum_area_sqft": 45,
+    "preferred_area_sqft": 75,
+    "maximum_area_sqft": 130
+  },
+  "staircase": {
+    "minimum_area_sqft": 70,
+    "preferred_area_sqft": 95,
+    "maximum_area_sqft": 140
+  },
+  "parking": {
+    "minimum_area_sqft": 150,
+    "preferred_area_sqft": 180,
+    "maximum_area_sqft": 240
+  }
+}

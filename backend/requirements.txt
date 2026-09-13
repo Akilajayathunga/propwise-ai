@@ -6,3 +6,5 @@ python-dotenv
 pandas
 pytest
 httpx
+Pillow
+ezdxf
