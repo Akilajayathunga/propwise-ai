@@ -51,6 +51,7 @@ class ParsedRequirements(BaseModel):
     district: str | None = None
     minimum_budget_lkr: int | None = None
     maximum_budget_lkr: int | None = None
+    maximum_land_budget_lkr: int | None = None
     total_project_budget_lkr: int | None = None
     construction_budget_lkr: int | None = None
     property_type: PropertyType | None = None
@@ -78,4 +79,3 @@ class Agent1Result(BaseModel):
     requirements: ParsedRequirements
     warnings: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
-

@@ -3,6 +3,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.requirements import Intent
+from app.schemas.requirements import ParsedRequirements
 
 
 class SelectedPropertyContext(BaseModel):
@@ -68,9 +69,39 @@ class PlanningResponse(BaseModel):
     remaining_construction_budget_lkr: float | None = None
     budget_estimation_available: bool = False
     budget_status: str = "COST_DATA_UNAVAILABLE"
+    floor_area_estimate: dict[str, Any] | None = None
+    construction_cost_estimate: dict[str, Any] | None = None
+    total_project_estimate: dict[str, Any] | None = None
+    assumptions: list[str] = Field(default_factory=list)
+    cost_disclaimer: str | None = None
     warnings: list[str] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
     plan: dict[str, Any] | None = None
     files: PlanFileSet = Field(default_factory=PlanFileSet)
     disclaimer: str
 
+
+class LandHouseEvaluationRequest(BaseModel):
+    requirements: ParsedRequirements
+    property_results: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class LandHouseOption(BaseModel):
+    option_id: str
+    property: dict[str, Any]
+    house: dict[str, Any]
+    budget: dict[str, Any]
+    planning: dict[str, Any]
+    combination_score: float
+    warnings: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    cost_disclaimer: str | None = None
+    technical_data: dict[str, Any] = Field(default_factory=dict)
+
+
+class LandHouseEvaluationResponse(BaseModel):
+    options: list[LandHouseOption] = Field(default_factory=list)
+    returned: int
+    budget_estimation_available: bool
+    warnings: list[str] = Field(default_factory=list)
+    cost_disclaimer: str | None = None

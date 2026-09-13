@@ -205,13 +205,16 @@ def extract_budget(text: str) -> dict[str, int | None]:
     result = {
         "minimum_budget_lkr": None,
         "maximum_budget_lkr": None,
+        "maximum_land_budget_lkr": None,
         "total_project_budget_lkr": None,
         "construction_budget_lkr": None,
     }
     for start, end, value in parse_money(text):
-        window = text[max(0, start - 40) : min(len(text), end + 40)].lower()
-        if re.search(r"\b(total|overall|entire project)\b|මුළු|සම්පූර්ණ", window):
+        window = text[max(0, start - 90) : min(len(text), end + 50)].lower()
+        if re.search(r"\b(total|overall|entire project)\b|both\s+the\s+land\s+and\s+house|land\s+and\s+house\b|මුළු|සම්පූර්ණ", window):
             result["total_project_budget_lkr"] = value
+        elif re.search(r"\b(land|plot)\s+(?:budget|price|cost)|(?:budget|price|cost)\s+(?:for\s+)?(?:land|plot)\b|ඉඩම.*අයවැය|ඉඩම.*මිල", window):
+            result["maximum_land_budget_lkr"] = value
         elif re.search(r"\b(construction|build|building)\b|ඉදිකිරීම්|හදන්න|සාදන්න", window):
             result["construction_budget_lkr"] = value
         elif re.search(r"\b(above|over|minimum|min|from|at least)\b|වැඩි|අවම", window):

@@ -1,13 +1,34 @@
 {
-  "verified_rates_available": false,
   "currency": "LKR",
   "unit": "sqft",
-  "source": null,
-  "last_verified": null,
-  "rates_lkr_per_sqft": {
-    "low": null,
-    "expected": null,
-    "high": null
+  "default_profile": "standard",
+  "construction_contingency_percent": 0,
+  "profiles": {
+    "basic": {
+      "low_rate_per_sqft": null,
+      "expected_rate_per_sqft": null,
+      "high_rate_per_sqft": null
+    },
+    "standard": {
+      "low_rate_per_sqft": null,
+      "expected_rate_per_sqft": null,
+      "high_rate_per_sqft": null
+    },
+    "premium": {
+      "low_rate_per_sqft": null,
+      "expected_rate_per_sqft": null,
+      "high_rate_per_sqft": null
+    }
   },
-  "note": "Schema placeholder only. Do not use until verified construction rates are supplied."
+  "combination_score_weights": {
+    "agent2_land_match": 0.35,
+    "budget_feasibility": 0.35,
+    "land_size_suitability": 0.15,
+    "house_program_fit": 0.15
+  },
+  "metadata": {
+    "source": "",
+    "effective_date": "",
+    "notes": "Populate sourced Sri Lankan construction rates before enabling numeric construction-cost estimates. Do not use placeholder or invented rates."
+  }
 }

@@ -125,7 +125,16 @@ def _ground_floor_rooms(requirements: list[RoomRequirement], width: float, lengt
     _add(rooms, room_by_id, "office", 0, front_h + mid_h, min(room_left_w, 13.0), 10.0)
     _add(rooms, room_by_id, "utility", left_w + right_w * 0.5, front_h + mid_h, right_w * 0.5, min(8.0, rear_h))
 
-    if not any(room.id == "bathroom_2" for room in rooms):
+    rear_y = front_h + mid_h
+    if "master_bedroom" in room_by_id:
+        master_w = max(11.0, room_left_w * 0.52)
+        private_h = max(9.5, min(12.5, length - rear_y))
+        _add(rooms, room_by_id, "master_bedroom", 0, rear_y, master_w, private_h)
+        for bedroom_index, req in enumerate([req for req in requirements if req.type == "bedroom"]):
+            _add_req(rooms, req, master_w + bedroom_index * max(9.0, room_left_w - master_w), rear_y, max(9.0, room_left_w - master_w), private_h, 1)
+        _add(rooms, room_by_id, "bathroom_1", left_w, rear_y, min(8.5, right_w), 8.0)
+
+    if not any(room.type == "bathroom" for room in rooms):
         _add_first_type(rooms, requirements, "bathroom", left_w, 6.0, min(8.0, right_w), 8.0)
 
     corridor_y = front_h + mid_h

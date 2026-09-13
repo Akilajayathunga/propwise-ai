@@ -10,7 +10,7 @@
     <main class="workspace">
       <section class="query-panel">
         <p class="eyebrow">PropWise AI</p>
-        <h1>Property Assistant</h1>
+        <h1>Property & Home Planner</h1>
 
         <form id="requirements-form" class="query-form">
           <label for="query">Property request</label>
@@ -23,17 +23,17 @@
       <section class="result-panel" aria-live="polite">
         <div class="result-header">
           <div>
-            <p class="eyebrow">Captured Output</p>
+            <p class="eyebrow">Your Requirements</p>
             <h2 id="intent-title">Waiting for input</h2>
           </div>
           <span id="confidence" class="confidence hidden"></span>
         </div>
 
-        <p id="message" class="empty-text">Submit a request to see the captured intent and extracted fields.</p>
+        <p id="message" class="empty-text">Submit a request to see your property plan.</p>
         <div id="field-grid" class="field-grid hidden"></div>
 
         <details id="json-block" class="json-block hidden">
-          <summary>JSON contract</summary>
+          <summary>View parsed requirements</summary>
           <pre id="json-output"></pre>
         </details>
       </section>
@@ -41,8 +41,8 @@
       <section class="properties-panel hidden" id="properties-panel" aria-live="polite">
         <div class="result-header">
           <div>
-            <p class="eyebrow">Agent 2</p>
-            <h2>Found Properties</h2>
+            <p class="eyebrow">Best Options</p>
+            <h2 id="options-title">Found Properties</h2>
           </div>
           <span id="property-count" class="confidence">0 results</span>
         </div>
@@ -72,6 +72,15 @@
         </details>
       </section>
     </main>
+
+    <div id="option-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-panel">
+        <button id="modal-close" class="modal-close" type="button" aria-label="Close">x</button>
+        <h2 id="modal-title">Option Details</h2>
+        <div id="modal-content"></div>
+      </section>
+    </div>
 
     <script src="app.js"></script>
   </body>

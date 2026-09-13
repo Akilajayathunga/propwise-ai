@@ -86,7 +86,7 @@ def _mask_max_budget(
     requirements: ParsedRequirements,
     relax: bool = False,
 ) -> pd.Series:
-    budget = requirements.maximum_budget_lkr
+    budget = requirements.maximum_land_budget_lkr if requirements.intent == Intent.LAND_AND_HOUSE else requirements.maximum_budget_lkr
     if budget is None:
         return pd.Series(True, index=df.index)
 
@@ -181,13 +181,15 @@ def apply_hard_filters(
 
 def describe_filters(requirements: ParsedRequirements, relax: bool = False) -> dict:
     """Return a human-readable snapshot of which filters were applied."""
-    budget = requirements.maximum_budget_lkr
+    budget = requirements.maximum_land_budget_lkr if requirements.intent == Intent.LAND_AND_HOUSE else requirements.maximum_budget_lkr
     return {
         "listing_type": requirements.listing_type,
         "property_type": requirements.property_type,
         "location": requirements.location,
         "district": requirements.district,
         "max_budget_lkr": int(budget * _BUDGET_RELAX_FACTOR) if (budget and relax) else budget,
+        "max_land_budget_lkr": requirements.maximum_land_budget_lkr,
+        "total_project_budget_lkr": requirements.total_project_budget_lkr,
         "min_budget_lkr": requirements.minimum_budget_lkr,
         "bedrooms_min": None if relax else requirements.bedrooms,
         "land_size_perches_min": requirements.minimum_land_size_perches or requirements.land_size_perches,
