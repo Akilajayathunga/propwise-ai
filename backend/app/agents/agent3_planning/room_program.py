@@ -45,7 +45,12 @@ def build_room_program(request: PlanningRequest) -> list[RoomRequirement]:
         rooms.append(_room(f"bedroom_{index}", "bedroom", f"Bedroom {index + 1}", True, 8, preferred_floor, sizes))
 
     for index in range(bathrooms):
-        preferred_floor = floors if floors > 1 and index else 1
+        if index == 0:
+            preferred_floor = floors
+        elif index == 1:
+            preferred_floor = 1
+        else:
+            preferred_floor = floors if floors > 1 else 1
         label = "Master Bathroom" if index == 0 else f"Bathroom {index + 1}"
         rooms.append(_room(f"bathroom_{index + 1}", "bathroom", label, True, 8, preferred_floor, sizes))
 
@@ -63,4 +68,3 @@ def build_room_program(request: PlanningRequest) -> list[RoomRequirement]:
         rooms.append(_room("parking", "parking", "Parking", True, 8, 1, sizes))
 
     return rooms
-

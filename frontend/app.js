@@ -267,16 +267,23 @@ function showPlanning(result) {
   const budgetGrid = document.querySelector("#budget-grid");
   const warnings = document.querySelector("#planning-warnings");
   const preview = document.querySelector("#design-preview");
+  const floorTabs = document.querySelector("#floor-tabs");
   const jsonOutput = document.querySelector("#planning-json-output");
 
   planningPanel.classList.remove("hidden");
   score.textContent = result.layout_score === null || result.layout_score === undefined ? "No score" : `${Math.round(result.layout_score)}%`;
 
+  const roomSummary = summarizeRooms(result.plan && result.plan.rooms ? result.plan.rooms : []);
   const budgetFields = [
     ["Plan ID", result.plan_id],
     ["Constraints", result.constraints_satisfied ? "Satisfied" : "Not satisfied"],
     ["Exact site fit", result.exact_site_fit_verified ? "Verified" : "Conceptual only"],
+    ["Bedrooms", roomSummary.bedrooms],
+    ["Bathrooms", roomSummary.bathrooms],
+    ["Floors", result.plan && result.plan.floors ? result.plan.floors.length : null],
+    ["Parking", result.plan && result.plan.parking ? result.plan.parking.spaces : null],
     ["Floor area", result.estimated_floor_area_sqft ? `${formatValue(result.estimated_floor_area_sqft)} sqft` : null],
+    ["Space efficiency", result.plan && result.plan.space_metrics ? `${formatValue(result.plan.space_metrics.space_efficiency_score)}%` : null],
     ["Remaining construction budget", formatMoney(result.remaining_construction_budget_lkr)],
     ["Budget status", result.budget_status],
     ["Cost estimate available", result.budget_estimation_available ? "Yes" : "No"],
@@ -303,12 +310,27 @@ function showPlanning(result) {
   }
 
   preview.innerHTML = "";
-  const svgUrl = firstPlanUrl(result.files && result.files.svg ? result.files.svg[0] : null);
-  if (svgUrl) {
+  floorTabs.innerHTML = "";
+  const svgFiles = result.files && result.files.svg ? result.files.svg : [];
+  const svgUrls = svgFiles.map((path) => firstPlanUrl(path)).filter(Boolean);
+  if (svgUrls.length) {
     const image = document.createElement("img");
-    image.src = svgUrl;
     image.alt = "Generated conceptual floor plan";
     preview.appendChild(image);
+
+    svgUrls.forEach((url, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = index === 0 ? "floor-tab active" : "floor-tab";
+      button.textContent = index === 0 ? "Ground Floor" : `Floor ${index + 1}`;
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".floor-tab").forEach((tab) => tab.classList.remove("active"));
+        button.classList.add("active");
+        image.src = url;
+      });
+      floorTabs.appendChild(button);
+    });
+    image.src = svgUrls[0];
   }
 
   const links = document.createElement("div");
@@ -330,6 +352,17 @@ function showPlanning(result) {
   });
   preview.appendChild(links);
   jsonOutput.textContent = JSON.stringify(result, null, 2);
+}
+
+function summarizeRooms(rooms) {
+  return rooms.reduce(
+    (summary, room) => {
+      if (room.type === "bedroom" || room.type === "master_bedroom") summary.bedrooms += 1;
+      if (room.type === "bathroom") summary.bathrooms += 1;
+      return summary;
+    },
+    { bedrooms: 0, bathrooms: 0 },
+  );
 }
 
 function firstPlanUrl(path) {

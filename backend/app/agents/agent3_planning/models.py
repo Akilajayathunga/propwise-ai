@@ -44,6 +44,74 @@ class Room:
     width: float
     height: float
     area_sqft: float
+    zone: str = "private"
+
+
+@dataclass
+class Wall:
+    id: str
+    floor_number: int
+    wall_type: str
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    thickness: float
+    adjacent_spaces: list[str] = field(default_factory=list)
+
+
+@dataclass
+class Door:
+    id: str
+    floor_number: int
+    connected_spaces: list[str]
+    wall: str
+    position: float
+    width: float
+    swing_direction: str
+    door_type: str
+    x: float
+    y: float
+    orientation: str
+
+
+@dataclass
+class Window:
+    id: str
+    floor_number: int
+    room_id: str
+    wall: str
+    position: float
+    width: float
+    x: float
+    y: float
+    orientation: str
+
+
+@dataclass
+class Fixture:
+    id: str
+    floor_number: int
+    room_id: str
+    fixture_type: str
+    x: float
+    y: float
+    width: float
+    height: float
+    label: str | None = None
+
+
+@dataclass
+class Dimension:
+    id: str
+    floor_number: int
+    label: str
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    offset: float
+    dimension_type: str
 
 
 @dataclass
@@ -77,4 +145,14 @@ class CandidatePlan:
     warnings: list[str] = field(default_factory=list)
     score: float | None = None
     score_breakdown: dict[str, float] = field(default_factory=dict)
-
+    zones: dict[str, list[str]] = field(default_factory=dict)
+    walls: list[Wall] = field(default_factory=list)
+    doors: list[Door] = field(default_factory=list)
+    windows: list[Window] = field(default_factory=list)
+    fixtures: list[Fixture] = field(default_factory=list)
+    dimensions: list[Dimension] = field(default_factory=list)
+    circulation: dict[str, list[str]] = field(default_factory=dict)
+    access_graph: dict[str, list[str]] = field(default_factory=dict)
+    space_metrics: dict[str, float] = field(default_factory=dict)
+    exterior_wall_thickness: float = 0.75
+    interior_wall_thickness: float = 0.35

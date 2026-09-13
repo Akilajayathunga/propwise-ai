@@ -281,6 +281,37 @@ pre {
   font-size: 14px;
 }
 
+.plan-notice {
+  margin: -6px 0 16px;
+  color: var(--warn);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.floor-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.floor-tab {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 8px 12px;
+  font-weight: 700;
+}
+
+.floor-tab.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
 .design-preview {
   display: grid;
   gap: 14px;
@@ -289,7 +320,8 @@ pre {
 
 .design-preview img {
   width: 100%;
-  max-height: 620px;
+  max-height: 74vh;
+  min-height: 420px;
   object-fit: contain;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -309,4 +341,10 @@ pre {
   color: var(--accent-dark);
   text-decoration: none;
   font-weight: 700;
+}
+
+@media (max-width: 680px) {
+  .design-preview img {
+    min-height: 300px;
+  }
 }

@@ -241,3 +241,130 @@ def test_missing_construction_costs_returns_unavailable() -> None:
     assert response.budget_estimation_available is False
     assert response.budget_status == "COST_DATA_UNAVAILABLE"
 
+
+def test_circulation_connects_required_rooms() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(candidate_count=4))
+
+    assert response.plan is not None
+    graph = response.plan["access_graph"]
+    required_room_ids = {room["id"] for room in response.plan["rooms"] if room["zone"] != "external"}
+    visited = set()
+    stack = ["entrance"]
+    while stack:
+        node = stack.pop()
+        if node in visited:
+            continue
+        visited.add(node)
+        stack.extend(graph.get(node, []))
+
+    assert required_room_ids <= visited
+    assert "hall_ground" in graph
+
+
+def test_master_bathroom_connected_to_master_bedroom() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(candidate_count=4))
+
+    assert response.plan is not None
+    assert "bathroom_1" in response.plan["access_graph"]["master_bedroom"]
+
+
+def test_doors_have_valid_positions() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(candidate_count=4))
+
+    assert response.plan is not None
+    footprint = response.plan["building_footprint"]
+    assert response.plan["doors"]
+    for door in response.plan["doors"]:
+        assert door["width"] > 0
+        assert 0 <= door["x"] <= footprint["width"]
+        assert 0 <= door["y"] <= footprint["height"]
+
+
+def test_windows_are_only_on_external_walls() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(candidate_count=4))
+
+    assert response.plan is not None
+    exterior_walls = {wall["id"] for wall in response.plan["walls"] if wall["wall_type"] == "exterior"}
+    assert response.plan["windows"]
+    assert all(window["wall"] in exterior_walls for window in response.plan["windows"])
+
+
+def test_parking_has_entrance_relationship() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(candidate_count=4))
+
+    assert response.plan is not None
+    assert response.plan["parking"] is not None
+    assert "entrance" in response.plan["access_graph"]["parking"]
+
+
+def test_space_efficiency_metrics_exist() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(candidate_count=4))
+
+    assert response.plan is not None
+    metrics = response.plan["space_metrics"]
+    assert metrics["usable_room_area"] > 0
+    assert metrics["circulation_area"] > 0
+    assert metrics["footprint_area"] > metrics["usable_room_area"]
+    assert 0 <= metrics["space_efficiency_score"] <= 100
+
+
+def test_wall_generation_includes_exterior_and_interior() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(candidate_count=4))
+
+    assert response.plan is not None
+    wall_types = {wall["wall_type"] for wall in response.plan["walls"]}
+    assert {"exterior", "interior"} <= wall_types
+
+
+def test_svg_contains_architectural_symbols() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(candidate_count=4))
+
+    assert response.files.svg
+    svg_text = Path(response.files.svg[0]).read_text(encoding="utf-8")
+    assert 'class="door"' in svg_text
+    assert 'class="window"' in svg_text
+    assert 'class="stairs"' in svg_text
+    assert 'class="dimension"' in svg_text
+    assert "Conceptual AI-assisted plan" in svg_text
+
+
+def test_fixture_symbols_are_in_canonical_json() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(candidate_count=4))
+
+    assert response.plan is not None
+    fixture_types = {fixture["fixture_type"] for fixture in response.plan["fixtures"]}
+    assert {"bed", "sofa", "dining_table", "counter", "wc", "stair_treads", "vehicle"} <= fixture_types
+
+
+def test_dxf_architectural_layers_exist() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(candidate_count=4))
+
+    assert response.files.dxf is not None
+    doc = ezdxf.readfile(response.files.dxf)
+    layer_names = {layer.dxf.name for layer in doc.layers}
+    assert {
+        "LAND_BOUNDARY",
+        "EXTERIOR_WALLS",
+        "INTERIOR_WALLS",
+        "DOORS",
+        "WINDOWS",
+        "ROOM_LABELS",
+        "DIMENSIONS",
+        "STAIRS",
+        "PARKING",
+        "FIXTURES",
+        "ANNOTATIONS",
+    } <= layer_names
+
+
+def test_canonical_json_contains_renderer_geometry() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(candidate_count=4))
+
+    assert response.plan is not None
+    assert response.plan["zones"]
+    assert response.plan["walls"]
+    assert response.plan["doors"]
+    assert response.plan["windows"]
+    assert response.plan["fixtures"]
+    assert response.plan["dimensions"]
+    assert response.plan["conceptual_notice"] == "Conceptual AI-assisted plan only. Not construction-ready."

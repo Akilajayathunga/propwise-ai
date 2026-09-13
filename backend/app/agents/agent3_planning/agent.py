@@ -101,6 +101,11 @@ def canonical_plan(plan, warnings: list[str]) -> dict:
     return {
         "plan_id": plan.plan_id,
         "units": "feet",
+        "conceptual_notice": "Conceptual AI-assisted plan only. Not construction-ready.",
+        "wall_parameters": {
+            "exterior_wall_thickness": plan.exterior_wall_thickness,
+            "interior_wall_thickness": plan.interior_wall_thickness,
+        },
         "site": {
             "land_size_perches": plan.site.land_size_perches,
             "total_site_area_sqft": plan.site.total_site_area_sqft,
@@ -110,14 +115,20 @@ def canonical_plan(plan, warnings: list[str]) -> dict:
             "conceptual_envelope": plan.site.conceptual_envelope.__dict__,
         },
         "building_footprint": plan.footprint.__dict__,
+        "zones": plan.zones,
         "floors": [{"floor_number": floor, "name": "Ground" if floor == 1 else f"Floor {floor}"} for floor in range(1, plan.floors + 1)],
         "rooms": [room.__dict__ for room in plan.rooms],
-        "doors": [],
-        "windows": [],
+        "walls": [wall.__dict__ for wall in plan.walls],
+        "doors": [door.__dict__ for door in plan.doors],
+        "windows": [window.__dict__ for window in plan.windows],
+        "circulation": plan.circulation,
+        "access_graph": plan.access_graph,
         "stairs": [room.__dict__ for room in plan.rooms if room.type == "staircase"],
         "parking": plan.parking.__dict__ if plan.parking else None,
+        "fixtures": [fixture.__dict__ for fixture in plan.fixtures],
+        "dimensions": [dimension.__dict__ for dimension in plan.dimensions],
+        "space_metrics": plan.space_metrics,
         "warnings": warnings,
         "score": plan.score,
         "score_breakdown": plan.score_breakdown,
     }
-
