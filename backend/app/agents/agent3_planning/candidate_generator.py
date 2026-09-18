@@ -55,7 +55,8 @@ def generate_candidates(
 
     candidates: list[CandidatePlan] = []
     for idx in range(count):
-        target_area_per_floor = max(2200.0, max(allocated_preferred_by_floor.values()) / 0.52)
+        minimum_floor_area = 2200.0 if floors > 1 else 1350.0
+        target_area_per_floor = max(minimum_floor_area, max(allocated_preferred_by_floor.values()) / 0.66)
         ratio = [1.12, 1.28, 0.96, 1.38, 1.05][idx % 5]
         width = max(28.0, math.sqrt(target_area_per_floor * ratio))
         length = max(32.0, target_area_per_floor / width)
@@ -122,6 +123,8 @@ def _ground_floor_rooms(requirements: list[RoomRequirement], width: float, lengt
     _add(rooms, room_by_id, "kitchen", left_w, front_h, right_w, mid_h)
     _add(rooms, room_by_id, "stairs", left_w, 6.0, min(9.0, right_w), 10.5)
     _add(rooms, room_by_id, "bathroom_2", left_w + min(9.0, right_w), 6.0, max(7.0, right_w - min(9.0, right_w)), 8.0)
+    if "stairs" not in room_by_id and "bathroom_2" not in room_by_id and right_w >= 10.0:
+        rooms.append(Room("flex_front", "utility", "Store / Flex", 1, left_w, 6.0, right_w, max(8.0, front_h - 6.0), round(right_w * max(8.0, front_h - 6.0), 2), "service"))
     _add(rooms, room_by_id, "office", 0, front_h + mid_h, min(room_left_w, 13.0), 10.0)
     _add(rooms, room_by_id, "utility", left_w + right_w * 0.5, front_h + mid_h, right_w * 0.5, min(8.0, rear_h))
 
@@ -133,6 +136,9 @@ def _ground_floor_rooms(requirements: list[RoomRequirement], width: float, lengt
         for bedroom_index, req in enumerate([req for req in requirements if req.type == "bedroom"]):
             _add_req(rooms, req, master_w + bedroom_index * max(9.0, room_left_w - master_w), rear_y, max(9.0, room_left_w - master_w), private_h, 1)
         _add(rooms, room_by_id, "bathroom_1", left_w, rear_y, min(8.5, right_w), 8.0)
+        bath_w = min(8.5, right_w)
+        if "utility" not in room_by_id and right_w - bath_w >= 6.0 and length - rear_y >= 8.0:
+            rooms.append(Room("utility_flex", "utility", "Utility / Store", 1, left_w + bath_w, rear_y, right_w - bath_w, length - rear_y, round((right_w - bath_w) * (length - rear_y), 2), "service"))
 
     if not any(room.type == "bathroom" for room in rooms):
         _add_first_type(rooms, requirements, "bathroom", left_w, 6.0, min(8.0, right_w), 8.0)

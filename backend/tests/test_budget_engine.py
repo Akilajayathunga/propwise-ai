@@ -124,3 +124,6 @@ def test_frontend_contains_budget_labels() -> None:
     assert "View ad details" in frontend_js
     assert "Show budget summary" in frontend_js
     assert "Download plan" in frontend_js
+    assert "Download Excel" in frontend_js
+    assert "Contact number" in frontend_js
+    assert "Seller ad caption" in frontend_js

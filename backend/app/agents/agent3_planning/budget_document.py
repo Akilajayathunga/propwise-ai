@@ -85,11 +85,13 @@ def write_budget_documents(output_dir: Path, option: dict, plan_response) -> dic
     market_item_budget = build_market_item_budget(budget.get("construction_expected_lkr"), house.get("estimated_floor_area_sqft"))
 
     csv_path = output_dir / "budget_breakdown.csv"
+    excel_path = output_dir / "budget_summary.xls"
     html_path = output_dir / "budget_report.html"
-    planning = {**planning, "budget_csv_url": str(csv_path)}
+    planning = {**planning, "budget_csv_url": str(csv_path), "budget_excel_url": str(excel_path)}
     _write_budget_csv(csv_path, option, material_budget, market_item_budget)
+    _write_budget_excel(excel_path, property_data, house, budget, material_budget, market_item_budget)
     _write_budget_html(html_path, property_data, house, budget, planning, option, material_budget, market_item_budget, plan_response)
-    return {"budget_csv_url": str(csv_path), "budget_doc_url": str(html_path)}
+    return {"budget_csv_url": str(csv_path), "budget_excel_url": str(excel_path), "budget_doc_url": str(html_path)}
 
 
 def _write_budget_csv(path: Path, option: dict, material_budget: list[dict[str, Any]], market_item_budget: list[dict[str, Any]]) -> None:
@@ -121,6 +123,63 @@ def _write_budget_csv(path: Path, option: dict, material_budget: list[dict[str, 
             )
 
 
+def _write_budget_excel(
+    path: Path,
+    property_data: dict,
+    house: dict,
+    budget: dict,
+    material_budget: list[dict[str, Any]],
+    market_item_budget: list[dict[str, Any]],
+) -> None:
+    category_rows = "\n".join(
+        f"<tr><td>{_esc(row['category'])}</td><td>{row['share_percent']:.1f}%</td><td>{_money(row['estimated_lkr'])}</td><td>{_esc(row['notes'])}</td></tr>"
+        for row in material_budget
+    )
+    market_rows = "\n".join(
+        f"<tr><td>{_esc(row['work_item'])}</td><td>{_esc(row['unit'])}</td><td>{_quantity(row['quantity'])}</td><td>{_money(row['expected_rate_lkr'])}</td><td>{_money(row['adjusted_estimate_lkr'])}</td><td>{_esc(row['source_label'])}</td></tr>"
+        for row in market_item_budget
+    )
+    path.write_text(
+        f"""<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body {{ font-family: Arial, sans-serif; }}
+    h1, h2 {{ color: #06626d; }}
+    table {{ border-collapse: collapse; width: 100%; margin-bottom: 18px; }}
+    th {{ background: #087f8c; color: white; }}
+    th, td {{ border: 1px solid #9db4ad; padding: 8px; text-align: left; }}
+  </style>
+</head>
+<body>
+  <h1>PropWise AI Budget Summary</h1>
+  <table>
+    <tr><th>Field</th><th>Value</th></tr>
+    <tr><td>Property</td><td>{_esc(property_data.get('title') or property_data.get('listing_id') or 'Selected land')}</td></tr>
+    <tr><td>Location</td><td>{_esc(property_data.get('location'))}, {_esc(property_data.get('district'))}</td></tr>
+    <tr><td>House</td><td>{house.get('bedrooms')} bedrooms, {house.get('bathrooms')} bathrooms, {house.get('floors')} floor(s)</td></tr>
+    <tr><td>Estimated floor area</td><td>{house.get('estimated_floor_area_sqft')} sqft</td></tr>
+    <tr><td>Land price</td><td>{_money(budget.get('land_price_lkr'))}</td></tr>
+    <tr><td>Construction expected</td><td>{_money(budget.get('construction_expected_lkr'))}</td></tr>
+    <tr><td>Expected total</td><td>{_money(budget.get('total_expected_lkr'))}</td></tr>
+    <tr><td>Expected margin</td><td>{_money(budget.get('expected_margin_lkr'))}</td></tr>
+  </table>
+  <h2>Category Budget</h2>
+  <table>
+    <tr><th>Category</th><th>Share</th><th>Estimated Amount</th><th>Notes</th></tr>
+    {category_rows}
+  </table>
+  <h2>Market Price Item Sheet</h2>
+  <table>
+    <tr><th>Item</th><th>Unit</th><th>Qty Basis</th><th>Market Expected Rate</th><th>Approx. Item Cost</th><th>Source</th></tr>
+    {market_rows}
+  </table>
+</body>
+</html>""",
+        encoding="utf-8",
+    )
+
+
 def _write_budget_html(
     path: Path,
     property_data: dict,
@@ -143,7 +202,8 @@ def _write_budget_html(
         for row in market_item_budget
     )
     plan_image = planning.get("png_url") or planning.get("svg_url")
-    csv_link = f'<p><a href="{_relative_name(planning.get("budget_csv_url"))}" download>Download detailed CSV budget sheet</a></p>' if planning.get("budget_csv_url") else ""
+    csv_link = f'<a class="action" href="{_relative_name(planning.get("budget_csv_url"))}" download>Download CSV</a>' if planning.get("budget_csv_url") else ""
+    excel_link = f'<a class="action primary" href="{_relative_name(planning.get("budget_excel_url"))}" download>Download Excel</a>' if planning.get("budget_excel_url") else ""
     image_section = f'<img class="plan" src="{_relative_name(plan_image)}" alt="Conceptual floor plan" />' if plan_image else "<p>Plan image unavailable.</p>"
     path.write_text(
         f"""<!doctype html>
@@ -152,21 +212,35 @@ def _write_budget_html(
   <meta charset="utf-8" />
   <title>PropWise Budget Report - {_esc(property_data.get('listing_id') or 'Option')}</title>
   <style>
-    body {{ font-family: Arial, sans-serif; margin: 32px; color: #1d2522; }}
-    h1, h2 {{ margin-bottom: 8px; }}
+    body {{ margin: 0; background: #eef3f0; color: #1d2522; font-family: Arial, sans-serif; }}
+    .shell {{ max-width: 1180px; margin: 0 auto; padding: 28px; }}
+    .hero {{ border-radius: 8px; background: #087f8c; color: white; padding: 28px; }}
+    .hero h1 {{ margin: 0 0 8px; font-size: 32px; }}
+    .hero p {{ margin: 0; color: #e9fbfd; }}
+    h2 {{ margin: 28px 0 10px; }}
+    .actions {{ display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }}
+    .action {{ display: inline-flex; align-items: center; justify-content: center; min-height: 38px; border: 1px solid #d8ded8; border-radius: 8px; padding: 8px 14px; color: #06626d; background: white; font-weight: 700; text-decoration: none; }}
+    .action.primary {{ background: #087f8c; color: white; border-color: #087f8c; }}
+    .panel {{ border: 1px solid #d8ded8; border-radius: 8px; background: white; padding: 20px; margin-top: 18px; box-shadow: 0 14px 34px rgba(29, 37, 34, 0.08); }}
     .summary {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }}
     .box {{ border: 1px solid #d8ded8; border-radius: 8px; padding: 12px; background: #fbfcfb; }}
     .box span {{ display: block; color: #61706a; font-size: 12px; margin-bottom: 6px; }}
     .box strong {{ font-size: 18px; }}
-    table {{ width: 100%; border-collapse: collapse; margin: 16px 0; }}
+    table {{ width: 100%; border-collapse: collapse; margin: 16px 0; background: white; }}
     th, td {{ border: 1px solid #d8ded8; padding: 9px; text-align: left; vertical-align: top; }}
-    th {{ background: #e7f3f4; }}
+    th {{ background: #e7f3f4; color: #06626d; }}
     .plan {{ width: 100%; max-height: 760px; object-fit: contain; border: 1px solid #d8ded8; border-radius: 8px; }}
     .notice {{ color: #9f3a38; font-weight: 700; }}
   </style>
 </head>
 <body>
-  <h1>PropWise AI Budget Report</h1>
+  <main class="shell">
+  <section class="hero">
+    <h1>PropWise AI Budget Report</h1>
+    <p>Approximate planning budget for the selected land and house option.</p>
+  </section>
+  <div class="actions">{excel_link}{csv_link}</div>
+  <section class="panel">
   <p class="notice">Conceptual AI-assisted estimate - not a contractor quotation or quantity-surveyor estimate.</p>
   <h2>Property</h2>
   <p><strong>{_esc(property_data.get('title') or property_data.get('listing_id') or 'Selected land')}</strong></p>
@@ -186,7 +260,6 @@ def _write_budget_html(
   <p>Estimated floor area: {house.get('estimated_floor_area_sqft')} sq.ft</p>
 
   <h2>Construction Budget By Material / Work Category</h2>
-  {csv_link}
   <table>
     <thead><tr><th>Category</th><th>Share</th><th>Estimated amount</th><th>Includes</th></tr></thead>
     <tbody>{rows}</tbody>
@@ -205,6 +278,8 @@ def _write_budget_html(
   <h2>Warnings and Assumptions</h2>
   <ul>{warnings}</ul>
   <p>{_esc(COST_DISCLAIMER)}</p>
+  </section>
+  </main>
 </body>
 </html>
 """,

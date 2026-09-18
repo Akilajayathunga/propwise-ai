@@ -4,7 +4,7 @@ from app.agents.agent3_planning.models import CandidatePlan, Dimension, Door, Fi
 
 
 SCALE = 10
-MARGIN = 82
+MARGIN = 112
 
 
 def render_svg(plan: CandidatePlan, output_dir: Path) -> list[str]:
@@ -20,7 +20,8 @@ def render_svg(plan: CandidatePlan, output_dir: Path) -> list[str]:
 
 def _svg_for_floor(plan: CandidatePlan, floor: int) -> str:
     drawing_width = int(plan.footprint.width * SCALE + MARGIN * 2 + 120)
-    drawing_height = int(plan.footprint.height * SCALE + MARGIN * 2 + 90)
+    parking_extra = int((plan.parking.height + 9) * SCALE) if floor == 1 and plan.parking else 0
+    drawing_height = int(plan.footprint.height * SCALE + MARGIN * 2 + 90 + parking_extra)
     title = "GROUND FLOOR" if floor == 1 else f"FLOOR {floor}"
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{drawing_width}" height="{drawing_height}" viewBox="0 0 {drawing_width} {drawing_height}" preserveAspectRatio="xMidYMid meet">',
@@ -29,7 +30,7 @@ def _svg_for_floor(plan: CandidatePlan, floor: int) -> str:
         "</defs>",
         '<rect width="100%" height="100%" fill="#f6f5f1"/>',
         f'<text x="{MARGIN}" y="34" font-family="Arial" font-size="18" font-weight="700" fill="#1d2522">{title} - CONCEPTUAL RESIDENTIAL PLAN</text>',
-        f'<text x="{MARGIN}" y="56" font-family="Arial" font-size="11" fill="#6a746f">Conceptual AI-assisted plan - not construction-ready</text>',
+        f'<text x="{MARGIN}" y="52" font-family="Arial" font-size="11" fill="#6a746f">Conceptual AI-assisted plan - not construction-ready</text>',
         _north_arrow(drawing_width - 72, 42),
         _site_context(plan, floor),
         _exterior_walls(plan),
@@ -126,10 +127,12 @@ def _fixture_symbol(fixture: Fixture) -> str:
 def _room_label(room: Room) -> str:
     x = _tx(room.x + room.width / 2)
     y = _ty(room.y + room.height / 2)
-    name = _esc(_short_label(room.label))
+    name = _esc(_fit_label(_short_label(room.label), room.width))
     dims = f"{_feet_label(room.width)} x {_feet_label(room.height)}"
+    box_w = min(room.width * SCALE - 8, max(62, len(name) * 6.5))
     return (
-        f'<g class="room-label"><text x="{x:.1f}" y="{y - 7:.1f}" text-anchor="middle" font-family="Arial" font-size="10" font-weight="700" fill="#1d2522">{name}</text>'
+        f'<g class="room-label"><rect x="{x - box_w / 2:.1f}" y="{y - 22:.1f}" width="{box_w:.1f}" height="40" rx="4" fill="#ffffff" stroke="#d8ded8" stroke-width="0.8"/>'
+        f'<text x="{x:.1f}" y="{y - 7:.1f}" text-anchor="middle" font-family="Arial" font-size="10" font-weight="700" fill="#1d2522">{name}</text>'
         f'<text x="{x:.1f}" y="{y + 6:.1f}" text-anchor="middle" font-family="Arial" font-size="8.5" fill="#4f5b55">{dims}</text>'
         f'<text x="{x:.1f}" y="{y + 18:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="#6a746f">{room.area_sqft:.0f} sq.ft</text></g>'
     )
@@ -155,11 +158,12 @@ def _parking(plan: CandidatePlan) -> str:
     assert plan.parking is not None
     px = MARGIN + (plan.parking.x - plan.footprint.x) * SCALE
     py = MARGIN + (plan.parking.y - plan.footprint.y) * SCALE
-    parts = [f'<g class="parking"><rect x="{px:.1f}" y="{py:.1f}" width="{plan.parking.width * SCALE:.1f}" height="{plan.parking.height * SCALE:.1f}" fill="none" stroke="#56615c" stroke-width="1.8"/>']
+    parts = [f'<g class="parking"><rect x="{px:.1f}" y="{py:.1f}" width="{plan.parking.width * SCALE:.1f}" height="{plan.parking.height * SCALE:.1f}" fill="#f7fbf8" stroke="#56615c" stroke-width="1.8"/>']
     for index in range(plan.parking.spaces):
         x = px + index * 10 * SCALE
         parts.append(f'<rect x="{x + 6:.1f}" y="{py + 8:.1f}" width="88" height="135" rx="10" fill="none" stroke="#56615c" stroke-width="1.2"/><text x="{x + 50:.1f}" y="{py + 78:.1f}" text-anchor="middle" font-family="Arial" font-size="9">CAR {index + 1}</text>')
-    parts.append(f'<path d="M{px + plan.parking.width * SCALE / 2:.1f},{py:.1f} L{_tx(plan.footprint.width / 2):.1f},{MARGIN:.1f}" stroke="#7a8580" stroke-width="1.2" stroke-dasharray="5 4"/><text x="{px:.1f}" y="{py - 8:.1f}" font-family="Arial" font-size="10" fill="#43524d">PARKING TO MAIN ENTRY</text></g>')
+    path_x = px + plan.parking.width * SCALE / 2
+    parts.append(f'<path d="M{path_x:.1f},{py:.1f} L{path_x:.1f},{py - 24:.1f} L{_tx(plan.footprint.width / 2):.1f},{py - 24:.1f} L{_tx(plan.footprint.width / 2):.1f},{MARGIN:.1f}" stroke="#7a8580" stroke-width="1.2" stroke-dasharray="5 4"/><text x="{px:.1f}" y="{py - 8:.1f}" font-family="Arial" font-size="10" font-weight="700" fill="#43524d">PARKING</text></g>')
     return "".join(parts)
 
 
@@ -171,7 +175,7 @@ def _site_context(plan: CandidatePlan, floor: int) -> str:
         site_w = plan.site.conceptual_envelope.width * SCALE
         site_h = plan.site.conceptual_envelope.height * SCALE
         return f'<rect x="36" y="68" width="{site_w:.1f}" height="{site_h:.1f}" fill="none" stroke="#9aa39e" stroke-dasharray="8 5"/><text x="36" y="62" font-family="Arial" font-size="10" fill="#6a746f">SITE BOUNDARY</text>'
-    return f'<text x="{MARGIN}" y="{MARGIN - 18}" font-family="Arial" font-size="10" font-weight="700" fill="#9f3a38">{note}</text>'
+    return f'<text x="{MARGIN}" y="68" font-family="Arial" font-size="10" font-weight="700" fill="#9f3a38">{note}</text>'
 
 
 def _north_arrow(x: float, y: float) -> str:
@@ -180,6 +184,20 @@ def _north_arrow(x: float, y: float) -> str:
 
 def _short_label(label: str) -> str:
     return label.upper().replace(" ROOM", "")
+
+
+def _fit_label(label: str, room_width: float) -> str:
+    max_chars = max(8, int(room_width * 1.15))
+    if len(label) <= max_chars:
+        return label
+    replacements = {
+        "MASTER BEDROOM": "MASTER BED",
+        "MASTER BATHROOM": "MASTER BATH",
+        "UTILITY / STORE": "UTILITY",
+        "STORE / FLEX": "FLEX",
+    }
+    shortened = replacements.get(label, label)
+    return shortened if len(shortened) <= max_chars else shortened[: max_chars - 1] + "."
 
 
 def _feet_label(value: float) -> str:

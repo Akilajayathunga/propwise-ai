@@ -189,7 +189,14 @@ function optionCard(option, index) {
     img.alt = "Conceptual floor plan preview";
     preview.appendChild(img);
   } else {
-    preview.textContent = "Plan needs adjustment";
+    const empty = document.createElement("div");
+    empty.className = "plan-empty-state";
+    const strong = document.createElement("strong");
+    strong.textContent = "Plan needs adjustment";
+    const small = document.createElement("span");
+    small.textContent = firstWarning(option) || "This land option is too tight or missing exact dimensions for a valid concept plan.";
+    empty.append(strong, small);
+    preview.appendChild(empty);
   }
 
   const houseLine = document.createElement("div");
@@ -218,7 +225,7 @@ function optionCard(option, index) {
   actions.className = "option-actions";
   actions.appendChild(actionButton("View ad details", () => openAdDetailsModal(option)));
   actions.appendChild(actionButton("Show budget summary", () => openBudgetSummaryModal(option)));
-  actions.appendChild(fileDownloadButton("Download plan", planning.png_url));
+  actions.appendChild(fileDownloadButton("Download plan", planning.png_url || planning.svg_url));
 
   card.append(top, title, subtitle, preview, houseLine, area, budgetBlock, status, actions);
   return card;
@@ -350,6 +357,8 @@ function openOptionModal(option) {
 function openAdDetailsModal(option) {
   const property = option.property || {};
   const ad = property.full_ad || option.technical_data?.source_property || {};
+  const caption = ad.description || property.description || ad.title || property.title || "No ad caption text was supplied in the dataset.";
+  const contactNumber = extractContactNumber(caption) || extractContactNumber(JSON.stringify(ad)) || "Not mentioned in ad";
   modalContent.innerHTML = "";
 
   const title = document.createElement("h2");
@@ -364,6 +373,7 @@ function openAdDetailsModal(option) {
     ["Property type", ad.property_type || "land"],
     ["Land size", formatPerches(property.land_size_perches || ad.land_size_perches)],
     ["Price", formatMoney(property.land_price_lkr || ad.sale_total_price_lkr || ad.price_lkr)],
+    ["Contact number", contactNumber],
     ["Verified", ad.is_verified === undefined ? null : ad.is_verified ? "Yes" : "No"],
     ["Match score", property.agent2_score === undefined ? null : `${Math.round(Number(property.agent2_score) * 100)}%`],
   ]
@@ -391,12 +401,26 @@ function openAdDetailsModal(option) {
   }
   features.append(featureTitle, featureList);
 
+  const captionPanel = document.createElement("div");
+  captionPanel.className = "caption-panel";
+  const captionTitle = document.createElement("h3");
+  captionTitle.textContent = "Seller ad caption";
+  const captionText = document.createElement("p");
+  captionText.textContent = caption;
+  captionPanel.append(captionTitle, captionText);
+
   const textBox = document.createElement("textarea");
   textBox.className = "ad-textbox";
   textBox.readOnly = true;
   textBox.value = formatAdText(property, ad);
 
-  modalContent.append(title, header, address, features, textBox);
+  const fullAdPanel = document.createElement("div");
+  fullAdPanel.className = "full-ad-panel";
+  const fullAdTitle = document.createElement("h3");
+  fullAdTitle.textContent = "Full ad record";
+  fullAdPanel.append(fullAdTitle, textBox);
+
+  modalContent.append(title, header, address, captionPanel, features, fullAdPanel);
   modal.classList.remove("hidden");
 }
 
@@ -410,6 +434,7 @@ async function openBudgetSummaryModal(option) {
 
   const topActions = document.createElement("div");
   topActions.className = "modal-actions";
+  topActions.appendChild(fileDownloadButton("Download Excel", planning.budget_excel_url));
   topActions.appendChild(fileDownloadButton("Download CSV", planning.budget_csv_url));
   topActions.appendChild(downloadLink("Open full budget report", planning.budget_doc_url));
 
@@ -683,6 +708,11 @@ function friendlyWarnings(warnings) {
   return warnings.join(" ").replaceAll("COST_DATA_UNAVAILABLE", "construction cost data required");
 }
 
+function firstWarning(option) {
+  const warnings = option?.warnings || option?.technical_data?.warnings || [];
+  return Array.isArray(warnings) && warnings.length ? warnings[0] : "";
+}
+
 function formatCount(value, label) {
   if (value === null || value === undefined) return `0 ${label}`;
   return `${value} ${label}${Number(value) === 1 ? "" : "s"}`;
@@ -704,8 +734,10 @@ function fileNameFromPath(path) {
 }
 
 function formatAdText(property, ad) {
+  const caption = ad.description || property.description || ad.title || property.title || "";
   const details = {
     title: ad.title || property.title,
+    caption,
     listing_id: property.listing_id || ad.listing_id,
     location: property.location || ad.location,
     district: property.district || ad.district,
@@ -714,11 +746,18 @@ function formatAdText(property, ad) {
     property_type: ad.property_type || "land",
     land_size_perches: property.land_size_perches || ad.land_size_perches,
     price_lkr: property.land_price_lkr || ad.sale_total_price_lkr || ad.price_lkr,
+    contact_number: extractContactNumber(caption) || extractContactNumber(JSON.stringify(ad)) || "Not mentioned in ad",
     verified: ad.is_verified === undefined ? null : ad.is_verified,
     posted_date: ad.posted_date,
     features: property.features || [],
   };
   return JSON.stringify(details, null, 2);
+}
+
+function extractContactNumber(text) {
+  if (!text) return "";
+  const match = String(text).match(/(?:\+94|0)?(?:\s|-|\.)?(?:7\d)(?:\s|-|\.)?\d{3}(?:\s|-|\.)?\d{4}/);
+  return match ? match[0].replace(/\s+/g, " ").trim() : "";
 }
 
 function summarizeRooms(rooms) {

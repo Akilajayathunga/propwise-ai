@@ -78,4 +78,5 @@ def test_evaluate_land_house_returns_combined_options_with_preserved_house_requi
     assert option["planning"]["png_url"]
     assert option["planning"]["budget_doc_url"]
     assert option["planning"]["budget_csv_url"]
+    assert option["planning"]["budget_excel_url"]
     assert option["property"]["full_ad"]["title"] == "Kottawa land"

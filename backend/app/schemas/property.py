@@ -10,6 +10,7 @@ class PropertyResult(BaseModel):
 
     listing_id: str
     title: str
+    description: str | None = None
     district: str | None = None
     location: str | None = None
     address: str | None = None
