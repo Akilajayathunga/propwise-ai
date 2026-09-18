@@ -1,7 +1,10 @@
+from pathlib import Path
+
 from fastapi import APIRouter
 
 from app.agents.agent3_planning.agent import HomePlanningAgent
 from app.agents.agent3_planning.budget import COST_DISCLAIMER, evaluate_land_house_options, planning_request_from_requirements
+from app.agents.agent3_planning.budget_document import write_budget_documents
 from app.schemas.planning import LandHouseEvaluationRequest, LandHouseEvaluationResponse, PlanningRequest, PlanningResponse
 
 router = APIRouter(prefix="/planning", tags=["planning"])
@@ -46,6 +49,7 @@ def _combined_option(request: LandHouseEvaluationRequest, option: dict):
         "is_verified": source_property.get("is_verified"),
         "agent2_score": option.get("agent2_property_score"),
         "features": _features(source_property.get("features")),
+        "full_ad": source_property,
     }
     budget = {
         "total_project_budget_lkr": option.get("total_project_budget_lkr"),
@@ -77,7 +81,7 @@ def _combined_option(request: LandHouseEvaluationRequest, option: dict):
         "space_efficiency": (plan_response.plan or {}).get("space_metrics", {}).get("space_efficiency_score") if plan_response.plan else None,
     }
     warnings = option.get("assumptions", []) + option.get("warnings", []) + plan_response.warnings
-    return {
+    combined = {
         "option_id": option.get("option_id"),
         "property": property_data,
         "house": option.get("house", {}),
@@ -89,6 +93,10 @@ def _combined_option(request: LandHouseEvaluationRequest, option: dict):
         "cost_disclaimer": option.get("cost_disclaimer"),
         "technical_data": option,
     }
+    if plan_response.files.json:
+        docs = write_budget_documents(Path(plan_response.files.json).parent, combined, plan_response)
+        combined["planning"].update(docs)
+    return combined
 
 
 def _nested(data: dict, parent: str, key: str):

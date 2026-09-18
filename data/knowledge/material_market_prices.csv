@@ -1,0 +1,12 @@
+work_item,unit,low_rate_lkr,expected_rate_lkr,high_rate_lkr,source_label,as_of,notes
+Foundation and substructure,sqft,2500,3250,4000,Unicon 2026 work-category guide,2026-09-18,"Indicative Sri Lanka 2026 rate; depends heavily on soil and site condition."
+Walls and main structure,sqft,3000,4000,5000,Unicon 2026 work-category guide,2026-09-18,"Includes typical wall and structural work allowance."
+Roof or slab,sqft,2000,2750,3500,Unicon 2026 work-category guide,2026-09-18,"Roof form and slab design can materially change cost."
+Plastering and general finishing,sqft,1500,2000,2500,Unicon 2026 work-category guide,2026-09-18,"Indicative plaster and finish allowance."
+Plumbing and electrical,sqft,800,1150,1500,Unicon 2026 work-category guide,2026-09-18,"Excludes premium smart-home systems and luxury sanitary ware."
+Floor tiling,sqft,600,900,1200,Unicon 2026 work-category guide,2026-09-18,"Tile selection and laying pattern can change cost."
+Painting,sqft,400,600,800,Unicon 2026 work-category guide,2026-09-18,"Paint brand, wall preparation and texture finishes affect cost."
+Cement local,50kg bag,1695,2034,2200,VFORM market material chart,2026-09-18,"Latest visible VFORM market chart showed Cement-Local at LKR 2,034 in Jun-2026."
+River sand,2.83 m3 cube,28000,36000,39000,VFORM market material chart,2026-09-18,"Latest visible VFORM market chart showed River Sand at LKR 36,000 in Jun-2026."
+Quarry dust,2.83 m3 cube,12333,16500,18000,VFORM market material chart,2026-09-18,"Latest visible VFORM market chart showed Quarry Dust at LKR 16,500 in Jun-2026."
+Red soil,2.83 m3 cube,8000,12000,13000,VFORM market material chart,2026-09-18,"Latest visible VFORM market chart showed Red Soil 1 Cube at LKR 12,000 in Jun-2026."

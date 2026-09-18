@@ -121,3 +121,6 @@ def test_frontend_contains_budget_labels() -> None:
     assert "Land price" in frontend_js
     assert "Construction estimate" in frontend_js
     assert "Expected total" in frontend_js
+    assert "View ad details" in frontend_js
+    assert "Show budget summary" in frontend_js
+    assert "Download plan" in frontend_js

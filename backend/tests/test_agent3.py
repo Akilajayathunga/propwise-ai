@@ -235,11 +235,13 @@ def test_dxf_can_be_reopened() -> None:
     assert doc.modelspace() is not None
 
 
-def test_missing_construction_costs_returns_unavailable() -> None:
+def test_configured_construction_costs_are_available() -> None:
     response = HomePlanningAgent().generate(plan_house_request(candidate_count=2))
 
-    assert response.budget_estimation_available is False
-    assert response.budget_status == "COST_DATA_UNAVAILABLE"
+    assert response.budget_estimation_available is True
+    assert response.construction_cost_estimate is not None
+    assert response.construction_cost_estimate["profile"] == "standard"
+    assert response.construction_cost_estimate["expected_lkr"] > 0
 
 
 def test_circulation_connects_required_rooms() -> None:

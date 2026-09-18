@@ -75,3 +75,7 @@ def test_evaluate_land_house_returns_combined_options_with_preserved_house_requi
     assert option["budget"]["remaining_after_land_lkr"] == 30_500_000
     assert option["planning"]["plan_id"].startswith("plan-")
     assert option["planning"]["svg_url"]
+    assert option["planning"]["png_url"]
+    assert option["planning"]["budget_doc_url"]
+    assert option["planning"]["budget_csv_url"]
+    assert option["property"]["full_ad"]["title"] == "Kottawa land"

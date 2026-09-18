@@ -216,9 +216,9 @@ function optionCard(option, index) {
 
   const actions = document.createElement("div");
   actions.className = "option-actions";
-  actions.appendChild(actionButton("View details", () => openOptionModal(option)));
-  actions.appendChild(downloadLink("SVG", planning.svg_url));
-  actions.appendChild(downloadLink("DXF", planning.dxf_url));
+  actions.appendChild(actionButton("View ad details", () => openAdDetailsModal(option)));
+  actions.appendChild(actionButton("Show budget summary", () => openBudgetSummaryModal(option)));
+  actions.appendChild(fileDownloadButton("Download plan", planning.png_url));
 
   card.append(top, title, subtitle, preview, houseLine, area, budgetBlock, status, actions);
   return card;
@@ -328,7 +328,16 @@ function openOptionModal(option) {
 
   const downloads = document.createElement("div");
   downloads.className = "file-links";
-  [["PNG", planning.png_url], ["SVG", planning.svg_url], ["DXF", planning.dxf_url], ["Plan JSON", planning.json_url]].forEach(([label, path]) => downloads.appendChild(downloadLink(label, path)));
+  [
+    ["Budget doc", planning.budget_doc_url],
+    ["SVG", planning.svg_url],
+  ].forEach(([label, path]) => downloads.appendChild(downloadLink(label, path)));
+  [
+    ["Plan image", planning.png_url],
+    ["Budget CSV", planning.budget_csv_url],
+    ["DXF", planning.dxf_url],
+    ["Plan JSON", planning.json_url],
+  ].forEach(([label, path]) => downloads.appendChild(fileDownloadButton(label, path)));
 
   const warning = document.createElement("p");
   warning.className = "plan-notice";
@@ -336,6 +345,112 @@ function openOptionModal(option) {
 
   modalContent.append(header, planTabs, planPreview, budgetBlock, downloads, warning, details);
   modal.classList.remove("hidden");
+}
+
+function openAdDetailsModal(option) {
+  const property = option.property || {};
+  const ad = property.full_ad || option.technical_data?.source_property || {};
+  modalContent.innerHTML = "";
+
+  const title = document.createElement("h2");
+  title.textContent = "Ad details";
+
+  const header = document.createElement("div");
+  header.className = "modal-summary";
+  [
+    ["Listing ID", property.listing_id || ad.listing_id],
+    ["Location", [property.location || ad.location, property.district || ad.district].filter(Boolean).join(", ")],
+    ["Listing type", ad.listing_type || "sale"],
+    ["Property type", ad.property_type || "land"],
+    ["Land size", formatPerches(property.land_size_perches || ad.land_size_perches)],
+    ["Price", formatMoney(property.land_price_lkr || ad.sale_total_price_lkr || ad.price_lkr)],
+    ["Verified", ad.is_verified === undefined ? null : ad.is_verified ? "Yes" : "No"],
+    ["Match score", property.agent2_score === undefined ? null : `${Math.round(Number(property.agent2_score) * 100)}%`],
+  ]
+    .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .forEach(([label, value]) => header.appendChild(summaryItem(label, value)));
+
+  const address = document.createElement("p");
+  address.className = "muted";
+  address.textContent = [ad.address, ad.geo_region, ad.posted_date].filter(Boolean).join(" - ");
+
+  const features = document.createElement("div");
+  features.className = "ad-section";
+  const featureTitle = document.createElement("h3");
+  featureTitle.textContent = "Ad features";
+  const featureList = document.createElement("ul");
+  (property.features || []).forEach((feature) => {
+    const item = document.createElement("li");
+    item.textContent = feature;
+    featureList.appendChild(item);
+  });
+  if (!featureList.children.length) {
+    const item = document.createElement("li");
+    item.textContent = "No feature text supplied in the dataset.";
+    featureList.appendChild(item);
+  }
+  features.append(featureTitle, featureList);
+
+  const textBox = document.createElement("textarea");
+  textBox.className = "ad-textbox";
+  textBox.readOnly = true;
+  textBox.value = formatAdText(property, ad);
+
+  modalContent.append(title, header, address, features, textBox);
+  modal.classList.remove("hidden");
+}
+
+async function openBudgetSummaryModal(option) {
+  const planning = option.planning || {};
+  const budget = option.budget || {};
+  modalContent.innerHTML = "";
+
+  const title = document.createElement("h2");
+  title.textContent = "Budget summary";
+
+  const topActions = document.createElement("div");
+  topActions.className = "modal-actions";
+  topActions.appendChild(fileDownloadButton("Download CSV", planning.budget_csv_url));
+  topActions.appendChild(downloadLink("Open full budget report", planning.budget_doc_url));
+
+  const summary = document.createElement("div");
+  summary.className = "modal-summary";
+  [
+    ["Land price", formatCompactMoney(budget.land_price_lkr)],
+    ["Construction expected", formatCompactMoney(budget.construction_expected_lkr)],
+    ["Expected total", formatCompactMoney(budget.total_expected_lkr)],
+    ["Budget status", friendlyStatus(budget.budget_status)],
+  ].forEach(([label, value]) => summary.appendChild(summaryItem(label, value)));
+
+  const itemCount = document.createElement("p");
+  itemCount.className = "muted";
+  itemCount.textContent = "Loading budget item costs...";
+
+  const table = document.createElement("table");
+  table.className = "budget-table";
+  table.innerHTML = "<thead><tr><th>Item</th><th>Unit</th><th>Qty basis</th><th>Rate</th><th>Approx. cost</th></tr></thead><tbody></tbody>";
+
+  modalContent.append(title, topActions, summary, itemCount, table);
+  modal.classList.remove("hidden");
+
+  try {
+    const csvText = await fetchTextFile(planning.budget_csv_url);
+    const items = extractMarketBudgetItems(csvText);
+    itemCount.textContent = `${items.length} budget items loaded from the generated CSV sheet.`;
+    const body = table.querySelector("tbody");
+    body.innerHTML = "";
+    items.forEach((item) => {
+      const row = document.createElement("tr");
+      [item.name, item.unit, item.quantity, formatMoneyValue(item.rate), formatMoneyValue(item.cost)].forEach((value) => {
+        const cell = document.createElement("td");
+        cell.textContent = value || "Not provided";
+        row.appendChild(cell);
+      });
+      body.appendChild(row);
+    });
+  } catch (error) {
+    itemCount.textContent = "Budget CSV is not available yet. Open the full budget report or generate this option again.";
+  }
 }
 
 function closeModal() {
@@ -446,6 +561,87 @@ function downloadLink(label, path) {
   return link;
 }
 
+function fileDownloadButton(label, path) {
+  const button = actionButton(label, () => downloadFile(path));
+  if (!firstPlanUrl(path)) {
+    button.disabled = true;
+    button.setAttribute("aria-disabled", "true");
+  }
+  return button;
+}
+
+function openPlanFile(path) {
+  const url = firstPlanUrl(path);
+  if (!url) {
+    showError("Budget file is not available for this option.");
+    return;
+  }
+  window.open(url, "_blank", "noreferrer");
+}
+
+async function downloadFile(path) {
+  const url = firstPlanUrl(path);
+  if (!url) return;
+  const response = await fetch(url);
+  if (!response.ok) {
+    showError(`Unable to download ${fileNameFromPath(path)}.`);
+    return;
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = fileNameFromPath(path);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+async function fetchTextFile(path) {
+  const url = firstPlanUrl(path);
+  if (!url) throw new Error("Missing file URL");
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Unable to load ${fileNameFromPath(path)}`);
+  return response.text();
+}
+
+function extractMarketBudgetItems(csvText) {
+  const rows = csvText.split(/\r?\n/).map(parseCsvLine).filter((row) => row.length);
+  const headerIndex = rows.findIndex((row) => row[0] === "market_item");
+  if (headerIndex === -1) return [];
+  return rows.slice(headerIndex + 1).filter((row) => row[0]).map((row) => ({
+    name: row[0],
+    unit: row[1],
+    quantity: row[2] || "Reference only",
+    rate: row[3],
+    cost: row[4],
+  }));
+}
+
+function parseCsvLine(line) {
+  const values = [];
+  let current = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      current += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      values.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  values.push(current);
+  return values;
+}
+
 function requirementTitle(intent) {
   const labels = {
     LAND_AND_HOUSE: "Buy land + build",
@@ -501,6 +697,30 @@ function firstPlanUrl(path) {
   return `${apiBaseUrl}/plans/${normalized.slice(index + marker.length)}`;
 }
 
+function fileNameFromPath(path) {
+  if (!path) return "propwise-file";
+  const normalized = String(path).replaceAll("\\", "/");
+  return normalized.split("/").pop() || "propwise-file";
+}
+
+function formatAdText(property, ad) {
+  const details = {
+    title: ad.title || property.title,
+    listing_id: property.listing_id || ad.listing_id,
+    location: property.location || ad.location,
+    district: property.district || ad.district,
+    address: ad.address,
+    listing_type: ad.listing_type || "sale",
+    property_type: ad.property_type || "land",
+    land_size_perches: property.land_size_perches || ad.land_size_perches,
+    price_lkr: property.land_price_lkr || ad.sale_total_price_lkr || ad.price_lkr,
+    verified: ad.is_verified === undefined ? null : ad.is_verified,
+    posted_date: ad.posted_date,
+    features: property.features || [],
+  };
+  return JSON.stringify(details, null, 2);
+}
+
 function summarizeRooms(rooms) {
   return rooms.reduce(
     (summary, room) => {
@@ -522,6 +742,18 @@ function formatValue(value) {
 function formatMoney(value) {
   if (value === null || value === undefined) return "Not provided";
   return `LKR ${Number(value).toLocaleString("en-LK")}`;
+}
+
+function formatMoneyValue(value) {
+  if (value === null || value === undefined || value === "") return "Reference only";
+  const number = Number(value);
+  if (Number.isNaN(number)) return String(value);
+  return `Rs. ${number.toLocaleString("en-LK", { maximumFractionDigits: 0 })}`;
+}
+
+function formatPerches(value) {
+  if (value === null || value === undefined) return "Not provided";
+  return `${Number(value).toLocaleString("en-LK")} perches`;
 }
 
 function formatCompactMoney(value) {

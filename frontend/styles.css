@@ -274,6 +274,11 @@ pre {
   gap: 12px;
 }
 
+.option-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
 .match-badge,
 .status-badge {
   border-radius: 999px;
@@ -381,7 +386,8 @@ pre {
   font-weight: 800;
 }
 
-.text-button[aria-disabled="true"] {
+.text-button[aria-disabled="true"],
+.text-button:disabled {
   color: var(--muted);
   pointer-events: none;
   opacity: 0.55;
@@ -578,6 +584,56 @@ pre {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.ad-section {
+  margin: 16px 0;
+}
+
+.ad-section h3 {
+  margin: 0 0 8px;
+}
+
+.ad-section ul {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+
+.ad-textbox {
+  width: 100%;
+  min-height: 320px;
+  margin-top: 16px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  white-space: pre;
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.budget-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+.budget-table th,
+.budget-table td {
+  border: 1px solid var(--line);
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.budget-table th {
+  background: var(--soft);
+  color: var(--accent-dark);
 }
 
 .file-links a {

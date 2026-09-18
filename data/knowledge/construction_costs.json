@@ -5,14 +5,14 @@
   "construction_contingency_percent": 0,
   "profiles": {
     "basic": {
-      "low_rate_per_sqft": null,
-      "expected_rate_per_sqft": null,
-      "high_rate_per_sqft": null
+      "low_rate_per_sqft": 10000,
+      "expected_rate_per_sqft": 12000,
+      "high_rate_per_sqft": 15000
     },
     "standard": {
-      "low_rate_per_sqft": null,
-      "expected_rate_per_sqft": null,
-      "high_rate_per_sqft": null
+      "low_rate_per_sqft": 16000,
+      "expected_rate_per_sqft": 19000,
+      "high_rate_per_sqft": 22000
     },
     "premium": {
       "low_rate_per_sqft": null,
@@ -27,8 +27,8 @@
     "house_program_fit": 0.15
   },
   "metadata": {
-    "source": "",
-    "effective_date": "",
-    "notes": "Populate sourced Sri Lankan construction rates before enabling numeric construction-cost estimates. Do not use placeholder or invented rates."
+    "source": "Structa Engineering house construction cost guide 2026; Real One Holdings construction cost per square foot Sri Lanka 2026; IdealHome cost to build a house in Sri Lanka 2025.",
+    "effective_date": "2026-09-18",
+    "notes": "Indicative early-stage planning rates only. Basic profile uses Structa's 2026 practical residential planning range of about LKR 10,000-15,000/sqft and Real One's budget tier around LKR 12,000/sqft. Standard profile uses Real One's 2026 semi-luxury/quality family-home band of about LKR 16,000-22,000/sqft, with expected_rate_per_sqft set to the midpoint. Premium profile remains null because available sources state open-ended premium/luxury rates rather than a bounded low/expected/high range."
   }
 }
