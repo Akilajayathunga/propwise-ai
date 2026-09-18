@@ -182,10 +182,10 @@ function optionCard(option, index) {
   preview.className = "plan-preview";
   preview.type = "button";
   preview.addEventListener("click", () => openOptionModal(option));
-  const svgUrl = firstPlanUrl(planning.svg_url);
-  if (svgUrl) {
+  const previewUrl = firstPlanUrl(planning.png_url || planning.svg_url);
+  if (previewUrl) {
     const img = document.createElement("img");
-    img.src = svgUrl;
+    img.src = previewUrl;
     img.alt = "Conceptual floor plan preview";
     preview.appendChild(img);
   } else {
@@ -286,7 +286,7 @@ function showPlanning(result) {
 
   warnings.textContent = result.warnings?.join(" ") || "";
   warnings.classList.toggle("hidden", !result.warnings?.length);
-  renderPlanPreview(preview, floorTabs, result.files?.svg || []);
+  renderPlanPreview(preview, floorTabs, result.files?.png?.length ? result.files.png : result.files?.svg || []);
   jsonOutput.textContent = JSON.stringify(result, null, 2);
 }
 
@@ -310,7 +310,8 @@ function openOptionModal(option) {
   planTabs.className = "floor-tabs";
   const planPreview = document.createElement("div");
   planPreview.className = "design-preview modal-plan";
-  renderPlanPreview(planPreview, planTabs, planning.svg_urls || [planning.svg_url].filter(Boolean));
+  const modalPlanImages = planning.png_urls?.length ? planning.png_urls : planning.svg_urls || [planning.png_url || planning.svg_url].filter(Boolean);
+  renderPlanPreview(planPreview, planTabs, modalPlanImages);
 
   const budgetBlock = document.createElement("div");
   budgetBlock.className = "project-budget detail-budget";
