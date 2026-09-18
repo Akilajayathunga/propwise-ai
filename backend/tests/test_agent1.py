@@ -132,6 +132,33 @@ def test_agent1_land_and_house_pipeline() -> None:
     assert parsed.floors == 2
 
 
+def test_agent1_full_sinhala_land_and_house_pipeline() -> None:
+    parsed = RequirementUnderstandingAgent().parse(
+        "මට කොට්ටාව අවට රුපියල් මිලියන 40ක මුළු බජට් එකක් තියෙනවා. ඉඩමක් හොයාගෙන කාමර 2ක නිවසක් හදන්න පුළුවන්ද බලන්න."
+    ).requirements
+
+    assert parsed.intent == Intent.LAND_AND_HOUSE
+    assert parsed.location == "Kottawa"
+    assert parsed.district == "Colombo"
+    assert parsed.total_project_budget_lkr == 40_000_000
+    assert parsed.property_type == "land"
+    assert parsed.listing_type == "sale"
+    assert parsed.bedrooms == 2
+
+
+def test_agent1_full_sinhala_kandy_land_and_house_pipeline() -> None:
+    parsed = RequirementUnderstandingAgent().parse(
+        "මට නුවරින් මිලියන 40ට අඩුවෙන් ඉඩමක් අරන් ගෙයක් හදන්න ඕන"
+    ).requirements
+
+    assert parsed.intent == Intent.LAND_AND_HOUSE
+    assert parsed.location == "Kandy"
+    assert parsed.district == "Kandy"
+    assert parsed.total_project_budget_lkr == 40_000_000
+    assert parsed.property_type == "land"
+    assert parsed.listing_type == "sale"
+
+
 def test_agent1_land_and_house_total_budget_not_land_budget() -> None:
     parsed = RequirementUnderstandingAgent().parse(
         "I want land in Kottawa and a 2-bedroom house. My total budget is 40 million."

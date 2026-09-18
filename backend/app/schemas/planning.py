@@ -55,6 +55,7 @@ class PlanFileSet(BaseModel):
     svg: list[str] = Field(default_factory=list)
     png: list[str] = Field(default_factory=list)
     dxf: str | None = None
+    zip: str | None = None
     summary: str | None = None
 
 

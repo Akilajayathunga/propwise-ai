@@ -192,9 +192,9 @@ function optionCard(option, index) {
     const empty = document.createElement("div");
     empty.className = "plan-empty-state";
     const strong = document.createElement("strong");
-    strong.textContent = "Plan needs adjustment";
+    strong.textContent = "More details needed";
     const small = document.createElement("span");
-    small.textContent = firstWarning(option) || "This land option is too tight or missing exact dimensions for a valid concept plan.";
+    small.textContent = planAdjustmentMessage(option);
     empty.append(strong, small);
     preview.appendChild(empty);
   }
@@ -225,7 +225,7 @@ function optionCard(option, index) {
   actions.className = "option-actions";
   actions.appendChild(actionButton("View ad details", () => openAdDetailsModal(option)));
   actions.appendChild(actionButton("Show budget summary", () => openBudgetSummaryModal(option)));
-  actions.appendChild(fileDownloadButton("Download plan", planning.png_url || planning.svg_url));
+  actions.appendChild(fileDownloadButton("Download plan", planDownloadPath(planning)));
 
   card.append(top, title, subtitle, preview, houseLine, area, budgetBlock, status, actions);
   return card;
@@ -286,7 +286,7 @@ function showPlanning(result) {
 
   warnings.textContent = result.warnings?.join(" ") || "";
   warnings.classList.toggle("hidden", !result.warnings?.length);
-  renderPlanPreview(preview, floorTabs, result.files?.png?.length ? result.files.png : result.files?.svg || []);
+  renderPlanPreview(preview, floorTabs, result.files?.png?.length ? result.files.png : result.files?.svg || [], result.warnings);
   jsonOutput.textContent = JSON.stringify(result, null, 2);
 }
 
@@ -311,7 +311,7 @@ function openOptionModal(option) {
   const planPreview = document.createElement("div");
   planPreview.className = "design-preview modal-plan";
   const modalPlanImages = planning.png_urls?.length ? planning.png_urls : planning.svg_urls || [planning.png_url || planning.svg_url].filter(Boolean);
-  renderPlanPreview(planPreview, planTabs, modalPlanImages);
+  renderPlanPreview(planPreview, planTabs, modalPlanImages, option);
 
   const budgetBlock = document.createElement("div");
   budgetBlock.className = "project-budget detail-budget";
@@ -341,6 +341,7 @@ function openOptionModal(option) {
     ["SVG", planning.svg_url],
   ].forEach(([label, path]) => downloads.appendChild(downloadLink(label, path)));
   [
+    ["All floors ZIP", planning.zip_url],
     ["Plan image", planning.png_url],
     ["Budget CSV", planning.budget_csv_url],
     ["DXF", planning.dxf_url],
@@ -359,7 +360,7 @@ function openAdDetailsModal(option) {
   const property = option.property || {};
   const ad = property.full_ad || option.technical_data?.source_property || {};
   const caption = ad.description || property.description || ad.title || property.title || "No ad caption text was supplied in the dataset.";
-  const contactNumber = extractContactNumber(caption) || extractContactNumber(JSON.stringify(ad)) || "Not mentioned in ad";
+  const contactNumber = ad.contact_number || property.contact_number || extractContactNumber(caption) || extractContactNumber(JSON.stringify(ad)) || "Not mentioned in ad";
   modalContent.innerHTML = "";
 
   const title = document.createElement("h2");
@@ -484,14 +485,18 @@ function closeModal() {
   modalContent.innerHTML = "";
 }
 
-function renderPlanPreview(container, tabs, svgPaths) {
+function renderPlanPreview(container, tabs, svgPaths, planNoticeSource = null) {
   container.innerHTML = "";
   tabs.innerHTML = "";
   const urls = svgPaths.map(firstPlanUrl).filter(Boolean);
   if (!urls.length) {
-    const empty = document.createElement("p");
-    empty.className = "empty-text";
-    empty.textContent = "Plan needs adjustment.";
+    const empty = document.createElement("div");
+    empty.className = "plan-empty-state";
+    const strong = document.createElement("strong");
+    strong.textContent = "More details needed";
+    const small = document.createElement("span");
+    small.textContent = planAdjustmentMessage(planNoticeSource);
+    empty.append(strong, small);
     container.appendChild(empty);
     return;
   }
@@ -714,6 +719,19 @@ function firstWarning(option) {
   return Array.isArray(warnings) && warnings.length ? warnings[0] : "";
 }
 
+function planAdjustmentMessage(source) {
+  const warnings = Array.isArray(source) ? source : source?.warnings || source?.technical_data?.warnings || [];
+  const warningText = Array.isArray(warnings) ? warnings.join(" ") : String(warnings || "");
+  const bathroomMatch = warningText.match(/(\d+)\s+bathroom\(s\)\s+assumed/i);
+  if (bathroomMatch) {
+    return `Bathroom count was not mentioned. Using ${bathroomMatch[1]} bathroom${bathroomMatch[1] === "1" ? "" : "s"} for this concept plan.`;
+  }
+  if (/parking space assumed/i.test(warningText)) {
+    return "Parking count was not mentioned. Using 1 parking space for this concept plan.";
+  }
+  return firstWarning(source) || "Please add key details like bathroom count, bedrooms, floors, land size, or budget so a clearer plan can be generated.";
+}
+
 function formatCount(value, label) {
   if (value === null || value === undefined) return `0 ${label}`;
   return `${value} ${label}${Number(value) === 1 ? "" : "s"}`;
@@ -734,6 +752,11 @@ function fileNameFromPath(path) {
   return normalized.split("/").pop() || "propwise-file";
 }
 
+function planDownloadPath(planning) {
+  if (!planning) return "";
+  return planning.zip_url || planning.png_url || planning.svg_url;
+}
+
 function formatAdText(property, ad) {
   const caption = ad.description || property.description || ad.title || property.title || "";
   const details = {
@@ -747,7 +770,7 @@ function formatAdText(property, ad) {
     property_type: ad.property_type || "land",
     land_size_perches: property.land_size_perches || ad.land_size_perches,
     price_lkr: property.land_price_lkr || ad.sale_total_price_lkr || ad.price_lkr,
-    contact_number: extractContactNumber(caption) || extractContactNumber(JSON.stringify(ad)) || "Not mentioned in ad",
+    contact_number: ad.contact_number || property.contact_number || extractContactNumber(caption) || extractContactNumber(JSON.stringify(ad)) || "Not mentioned in ad",
     verified: ad.is_verified === undefined ? null : ad.is_verified,
     posted_date: ad.posted_date,
     features: property.features || [],

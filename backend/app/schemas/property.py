@@ -14,6 +14,7 @@ class PropertyResult(BaseModel):
     district: str | None = None
     location: str | None = None
     address: str | None = None
+    contact_number: str | None = None
     listing_type: str
     property_type: str
     price_lkr: float | None = None

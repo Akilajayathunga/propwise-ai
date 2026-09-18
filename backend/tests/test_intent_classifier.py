@@ -41,5 +41,14 @@ def test_land_and_house_intent() -> None:
     assert classify_intent(query) == Intent.LAND_AND_HOUSE
 
 
+def test_full_sinhala_land_and_house_intent() -> None:
+    query = "මට කොට්ටාව අවට රුපියල් මිලියන 40ක මුළු බජට් එකක් තියෙනවා. ඉඩමක් හොයාගෙන කාමර 2ක නිවසක් හදන්න පුළුවන්ද බලන්න."
+    assert classify_intent(query) == Intent.LAND_AND_HOUSE
+
+
+def test_full_sinhala_land_buy_and_build_intent() -> None:
+    assert classify_intent("මට නුවරින් මිලියන 40ට අඩුවෙන් ඉඩමක් අරන් ගෙයක් හදන්න ඕන") == Intent.LAND_AND_HOUSE
+
+
 def test_compare_properties_intent() -> None:
     assert classify_intent("Compare these properties.") == Intent.COMPARE_PROPERTIES

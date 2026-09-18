@@ -30,6 +30,7 @@ def test_generate_planning_endpoint() -> None:
     assert body["files"]["svg"]
     assert body["files"]["png"]
     assert body["files"]["dxf"]
+    assert body["files"]["zip"]
 
 
 def test_evaluate_land_house_returns_combined_options_with_preserved_house_requirements() -> None:
@@ -76,6 +77,7 @@ def test_evaluate_land_house_returns_combined_options_with_preserved_house_requi
     assert option["planning"]["plan_id"].startswith("plan-")
     assert option["planning"]["svg_url"]
     assert option["planning"]["png_url"]
+    assert option["planning"]["zip_url"]
     assert option["planning"]["budget_doc_url"]
     assert option["planning"]["budget_csv_url"]
     assert option["planning"]["budget_excel_url"]

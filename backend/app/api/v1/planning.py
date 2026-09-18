@@ -44,6 +44,7 @@ def _combined_option(request: LandHouseEvaluationRequest, option: dict):
         "location": option.get("location"),
         "district": option.get("district"),
         "address": source_property.get("address"),
+        "contact_number": source_property.get("contact_number"),
         "land_size_perches": option.get("land_size_perches"),
         "land_price_lkr": option.get("land_price_lkr"),
         "is_verified": source_property.get("is_verified"),
@@ -77,6 +78,7 @@ def _combined_option(request: LandHouseEvaluationRequest, option: dict):
         "png_url": plan_response.files.png[0] if plan_response.files.png else None,
         "png_urls": plan_response.files.png,
         "dxf_url": plan_response.files.dxf,
+        "zip_url": plan_response.files.zip,
         "json_url": plan_response.files.json,
         "space_efficiency": (plan_response.plan or {}).get("space_metrics", {}).get("space_efficiency_score") if plan_response.plan else None,
     }

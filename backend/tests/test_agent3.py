@@ -225,6 +225,7 @@ def test_canonical_json_svg_png_and_dxf_generated() -> None:
     assert response.files.svg and all(Path(path).exists() for path in response.files.svg)
     assert response.files.png and all(Path(path).exists() for path in response.files.png)
     assert response.files.dxf and Path(response.files.dxf).exists()
+    assert response.files.zip and Path(response.files.zip).exists()
 
 
 def test_dxf_can_be_reopened() -> None:

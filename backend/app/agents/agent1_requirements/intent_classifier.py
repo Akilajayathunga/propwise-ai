@@ -16,11 +16,13 @@ def classify_intent(query: str) -> Intent:
     ) is not None
     mentions_house_program = re.search(r"\b(?:\d+|one|two|three|four|five|six)[-\s]*(?:bedroom|bed)\s+(?:house|home)\b", text) is not None
     wants_to_buy = re.search(r"\b(find|buy|search|look for|purchase)\b", text) is not None or re.search(
-        r"(ගන්න|මිලදී|විකිණීමට)", query
+        r"(ගන්න|අරන්|මිලදී|විකිණීමට|හොය|සොය)", query
     ) is not None
     wants_land_search = wants_to_buy and mentions_land
 
-    if mentions_land and (mentions_building or mentions_house_program) and (wants_land_search or re.search(r"\btotal\s+budget\b", text)):
+    has_total_budget = re.search(r"\btotal\s+budget\b", text) is not None or re.search(r"(මුළු|සම්පූර්ණ).*(බජට්|අයවැය)", query) is not None
+
+    if mentions_land and (mentions_building or mentions_house_program) and (wants_land_search or has_total_budget):
         return Intent.LAND_AND_HOUSE
 
     if mentions_building:
