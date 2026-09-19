@@ -128,6 +128,19 @@ def test_correct_bedroom_and_bathroom_count() -> None:
     assert bathroom_count == 3
 
 
+def test_living_and_kitchen_sizes_scale_with_family_size() -> None:
+    small_program = build_room_program(plan_house_request(bedrooms=2, bathrooms=1))
+    large_program = build_room_program(plan_house_request(bedrooms=5, bathrooms=3))
+
+    small_living = next(room for room in small_program if room.id == "living")
+    large_living = next(room for room in large_program if room.id == "living")
+    small_kitchen = next(room for room in small_program if room.id == "kitchen")
+    large_kitchen = next(room for room in large_program if room.id == "kitchen")
+
+    assert large_living.preferred_area > small_living.preferred_area
+    assert large_kitchen.preferred_area > small_kitchen.preferred_area
+
+
 def test_staircase_exists_for_multi_storey() -> None:
     program = build_room_program(plan_house_request(floors=2))
 
@@ -177,6 +190,22 @@ def test_positive_room_dimensions_and_inside_footprint() -> None:
         assert room["height"] > 0
         assert room["x"] + room["width"] <= footprint["width"]
         assert room["y"] + room["height"] <= footprint["height"]
+
+
+def test_required_rooms_meet_minimum_size_rules() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(candidate_count=4))
+
+    assert response.plan is not None
+    for room in response.plan["rooms"]:
+        if room["type"] == "bedroom":
+            assert room["area_sqft"] >= 100
+            assert min(room["width"], room["height"]) >= 9
+        if room["type"] == "master_bedroom":
+            assert room["area_sqft"] >= 140
+            assert min(room["width"], room["height"]) >= 10
+        if room["type"] == "bathroom":
+            assert room["area_sqft"] >= 35
+            assert min(room["width"], room["height"]) >= 5
 
 
 def test_parking_does_not_overlap_building() -> None:
@@ -298,6 +327,20 @@ def test_parking_has_entrance_relationship() -> None:
     assert response.plan is not None
     assert response.plan["parking"] is not None
     assert "entrance" in response.plan["access_graph"]["parking"]
+    assert response.plan["parking"]["width"] >= 10 * response.plan["parking"]["spaces"]
+    assert response.plan["parking"]["height"] >= 16
+
+
+def test_key_architectural_adjacency_rules_are_reflected_in_graph() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(candidate_count=4, utility_room_required=True))
+
+    assert response.plan is not None
+    graph = response.plan["access_graph"]
+    assert "living" in graph["entrance"]
+    assert "kitchen" in graph["dining"]
+    assert "bathroom_1" in graph["master_bedroom"]
+    assert any(neighbor.startswith("hall") for neighbor in graph["stairs"])
+    assert any(neighbor.startswith("auto_") or neighbor == "utility" for neighbor in graph["kitchen"])
 
 
 def test_space_efficiency_metrics_exist() -> None:

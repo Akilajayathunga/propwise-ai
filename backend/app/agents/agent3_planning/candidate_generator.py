@@ -55,7 +55,7 @@ def generate_candidates(
 
     candidates: list[CandidatePlan] = []
     for idx in range(count):
-        minimum_floor_area = 2200.0 if floors > 1 else 1350.0
+        minimum_floor_area = 2200.0 if floors > 1 else 1650.0
         target_area_per_floor = max(minimum_floor_area, max(allocated_preferred_by_floor.values()) / 0.66)
         ratio = [1.12, 1.28, 0.96, 1.38, 1.05][idx % 5]
         width = max(28.0, math.sqrt(target_area_per_floor * ratio))
@@ -109,8 +109,8 @@ def _rooms_for_floor(requirements: list[RoomRequirement], floor: int, footprint:
 def _ground_floor_rooms(requirements: list[RoomRequirement], width: float, length: float, variant: int) -> list[Room]:
     room_by_id = {room.id: room for room in requirements}
     rooms: list[Room] = []
-    front_h = max(17.0, length * 0.34)
-    mid_h = max(10.0, length * 0.25)
+    front_h = max(16.5, length * 0.31)
+    mid_h = max(9.0, length * 0.22)
     rear_h = max(9.0, length - front_h - mid_h)
     left_w = width * (0.58 if variant % 2 == 0 else 0.52)
     right_w = width - left_w
@@ -130,8 +130,8 @@ def _ground_floor_rooms(requirements: list[RoomRequirement], width: float, lengt
 
     rear_y = front_h + mid_h
     if "master_bedroom" in room_by_id:
-        master_w = max(11.0, room_left_w * 0.52)
-        private_h = max(9.5, min(12.5, length - rear_y))
+        master_w = max(11.0, min(room_left_w - 9.0, max(12.0, room_left_w * 0.56)))
+        private_h = max(11.5, min(13.5, length - rear_y))
         _add(rooms, room_by_id, "master_bedroom", 0, rear_y, master_w, private_h)
         for bedroom_index, req in enumerate([req for req in requirements if req.type == "bedroom"]):
             _add_req(rooms, req, master_w + bedroom_index * max(9.0, room_left_w - master_w), rear_y, max(9.0, room_left_w - master_w), private_h, 1)
@@ -147,7 +147,7 @@ def _ground_floor_rooms(requirements: list[RoomRequirement], width: float, lengt
     rooms.append(Room("hall_ground", "hallway", "Hall", 1, left_w - hall_w, 6.0, hall_w, max(8.0, corridor_y - 6.0), round(hall_w * max(8.0, corridor_y - 6.0), 2), "circulation"))
 
     _pack_unplaced(rooms, requirements, width, length, 0, corridor_y, room_left_w - 1.0, max(8.0, length - corridor_y), 1)
-    return _trim_rooms(rooms, width, length)
+    return _fill_unused_spaces(_trim_rooms(rooms, width, length), width, length, 1)
 
 
 def _upper_floor_rooms(requirements: list[RoomRequirement], width: float, length: float, floor: int, variant: int) -> list[Room]:
@@ -155,8 +155,8 @@ def _upper_floor_rooms(requirements: list[RoomRequirement], width: float, length
     rooms: list[Room] = []
     landing_w = min(9.0, width * 0.2)
     landing_h = 10.5
-    center_x = width * 0.62
-    center_y = 6.0
+    center_x = width * 0.46
+    center_y = 10.0
 
     if "stairs" not in room_by_id:
         rooms.append(Room(f"stairs_floor_{floor}", "staircase", "Staircase", floor, center_x, center_y, landing_w, landing_h, round(landing_w * landing_h, 2), "circulation"))
@@ -188,7 +188,7 @@ def _upper_floor_rooms(requirements: list[RoomRequirement], width: float, length
         _add_req(rooms, req, bx, by + index * 8.5, min(8.5, width - bx), 8.0, floor)
 
     _pack_unplaced(rooms, requirements, width, length, 0, by + len(shared_baths) * 8.5, center_x - 1.0, max(8.0, length - by), floor)
-    return _trim_rooms(rooms, width, length)
+    return _fill_unused_spaces(_trim_rooms(rooms, width, length), width, length, floor)
 
 
 def _add(rooms: list[Room], room_by_id: dict[str, RoomRequirement], room_id: str, x: float, y: float, width: float, height: float, floor: int = 1) -> None:
@@ -240,11 +240,108 @@ def _trim_rooms(rooms: list[Room], width: float, length: float) -> list[Room]:
     return trimmed
 
 
+def _fill_unused_spaces(rooms: list[Room], width: float, length: float, floor: int) -> list[Room]:
+    """Convert large blank regions inside the footprint into named support spaces."""
+    existing = [room for room in rooms if room.floor_number == floor and room.area_sqft > 1.0]
+    x_edges = _space_edges([0.0, width], [(room.x, room.x + room.width) for room in existing], width)
+    y_edges = _space_edges([0.0, length], [(room.y, room.y + room.height) for room in existing], length)
+    empty_cells: list[Rect] = []
+
+    for y1, y2 in zip(y_edges, y_edges[1:]):
+        for x1, x2 in zip(x_edges, x_edges[1:]):
+            cell = Rect(x1, y1, round(x2 - x1, 2), round(y2 - y1, 2))
+            if cell.width < 3.5 or cell.height < 3.5 or cell.area < 35.0:
+                continue
+            if not _cell_overlaps_any_room(cell, existing):
+                empty_cells.append(cell)
+
+    merged_cells = _merge_empty_cells(empty_cells)
+    labels = [
+        ("flex", "Flex Room", "private"),
+        ("store", "Store", "service"),
+        ("pantry_store", "Pantry / Store", "service"),
+        ("reading_nook", "Reading Nook", "private"),
+        ("linen_store", "Linen Store", "service"),
+        ("utility_nook", "Utility Nook", "service"),
+        ("family_nook", "Family Nook", "private"),
+        ("general_store", "General Store", "service"),
+    ]
+
+    filled = list(rooms)
+    used = 0
+    for cell in sorted(merged_cells, key=lambda item: item.area, reverse=True):
+        if used >= len(labels):
+            break
+        if cell.width < 5.0 or cell.height < 5.0 or cell.area < 55.0:
+            continue
+        room_type, label, zone = labels[used]
+        filled.append(
+            Room(
+                f"auto_{room_type}_{floor}_{used + 1}",
+                "utility" if zone == "service" else "family_lounge",
+                label,
+                floor,
+                round(cell.x, 2),
+                round(cell.y, 2),
+                round(cell.width, 2),
+                round(cell.height, 2),
+                round(cell.area, 2),
+                zone,
+            )
+        )
+        used += 1
+
+    return _trim_rooms(filled, width, length)
+
+
+def _space_edges(base_edges: list[float], room_edges: list[tuple[float, float]], limit: float) -> list[float]:
+    edges = set(round(max(0.0, min(limit, edge)), 2) for edge in base_edges)
+    for start, end in room_edges:
+        edges.add(round(max(0.0, min(limit, start)), 2))
+        edges.add(round(max(0.0, min(limit, end)), 2))
+    return sorted(edge for edge in edges if 0.0 <= edge <= limit)
+
+
+def _cell_overlaps_any_room(cell: Rect, rooms: list[Room]) -> bool:
+    return any(_rect_overlap_area(cell, Rect(room.x, room.y, room.width, room.height)) > 1.0 for room in rooms)
+
+
+def _merge_empty_cells(cells: list[Rect]) -> list[Rect]:
+    remaining = sorted(cells, key=lambda cell: (cell.y, cell.x))
+    merged: list[Rect] = []
+    while remaining:
+        current = remaining.pop(0)
+        changed = True
+        while changed:
+            changed = False
+            for candidate in list(remaining):
+                if _same_band(current.y, current.height, candidate.y, candidate.height) and abs(current.x + current.width - candidate.x) <= 0.05:
+                    current = Rect(current.x, current.y, round(current.width + candidate.width, 2), current.height)
+                    remaining.remove(candidate)
+                    changed = True
+                elif _same_band(current.x, current.width, candidate.x, candidate.width) and abs(current.y + current.height - candidate.y) <= 0.05:
+                    current = Rect(current.x, current.y, current.width, round(current.height + candidate.height, 2))
+                    remaining.remove(candidate)
+                    changed = True
+        merged.append(current)
+    return merged
+
+
+def _same_band(start_a: float, size_a: float, start_b: float, size_b: float) -> bool:
+    return abs(start_a - start_b) <= 0.05 and abs(size_a - size_b) <= 0.05
+
+
+def _rect_overlap_area(a: Rect, b: Rect) -> float:
+    overlap_w = max(0.0, min(a.x + a.width, b.x + b.width) - max(a.x, b.x))
+    overlap_h = max(0.0, min(a.y + a.height, b.y + b.height) - max(a.y, b.y))
+    return overlap_w * overlap_h
+
+
 def _parking_for_request(request: PlanningRequest, footprint: Rect) -> Parking | None:
     if not request.parking_spaces:
         return None
     spaces = request.parking_spaces
-    return Parking(spaces=spaces, x=footprint.x, y=footprint.top + 3.0, width=10.0 * spaces, height=16.0)
+    return Parking(spaces=spaces, x=footprint.x, y=footprint.top + 3.0, width=10.0 * spaces, height=18.0)
 
 
 def _enrich_architectural_geometry(plan: CandidatePlan) -> None:
@@ -317,7 +414,20 @@ def _build_access_graph(plan: CandidatePlan) -> dict[str, list[str]]:
     _connect(graph, "living", "dining")
     _connect(graph, "dining", "kitchen")
     _connect(graph, "master_bedroom", "bathroom_1")
+    _connect_nearest_by_type(plan, graph, "kitchen", "utility")
+    _connect_nearest_by_type(plan, graph, "staircase", "hallway")
+    _connect_nearest_by_type(plan, graph, "bathroom", "bedroom")
     return graph
+
+
+def _connect_nearest_by_type(plan: CandidatePlan, graph: dict[str, list[str]], type_a: str, type_b: str) -> None:
+    rooms_a = [room for room in plan.rooms if room.type == type_a]
+    rooms_b = [room for room in plan.rooms if room.type == type_b]
+    for room in rooms_a:
+        same_floor_targets = [target for target in rooms_b if target.floor_number == room.floor_number]
+        target = _nearest(room, same_floor_targets)
+        if target:
+            _connect(graph, room.id, target.id)
 
 
 def _connect(graph: dict[str, list[str]], a: str, b: str) -> None:

@@ -22,19 +22,20 @@ def adjacency_score(candidate: CandidatePlan) -> float:
     if not rules:
         return 100.0
 
-    satisfied = 0
-    checked = 0
+    satisfied = 0.0
+    checked_weight = 0.0
     for rule in rules:
         left_rooms = rooms_by_type.get(rule["from"], [])
         right_rooms = rooms_by_type.get(rule["to"], [])
         if not left_rooms or not right_rooms:
             continue
-        checked += 1
+        weight = float(rule.get("weight", 1.0))
+        checked_weight += weight
         best = max(_pair_adjacency(a, b, float(rule.get("preferred_max_distance_ft", 18))) for a in left_rooms for b in right_rooms)
-        satisfied += best
-    if checked == 0:
+        satisfied += best * weight
+    if checked_weight == 0:
         return 100.0
-    return round(satisfied / checked * 100, 2)
+    return round(satisfied / checked_weight * 100, 2)
 
 
 def _pair_adjacency(a, b, preferred_distance: float) -> float:

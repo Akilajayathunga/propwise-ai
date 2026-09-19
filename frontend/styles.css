@@ -136,7 +136,8 @@ textarea:focus {
 }
 
 .empty-text,
-.error-text {
+.error-text,
+.follow-up-text {
   margin: 0;
   line-height: 1.5;
 }
@@ -147,6 +148,15 @@ textarea:focus {
 
 .error-text {
   color: var(--warn);
+}
+
+.follow-up-text {
+  border: 1px solid #b8d8d9;
+  border-radius: 8px;
+  background: #f2fbfb;
+  color: var(--accent-dark);
+  padding: 12px;
+  font-weight: 700;
 }
 
 .field-grid {

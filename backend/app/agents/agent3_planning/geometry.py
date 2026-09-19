@@ -11,4 +11,5 @@ def room_rect(room: Room) -> Rect:
 
 
 def inside(inner: Rect, outer: Rect) -> bool:
-    return inner.x >= outer.x and inner.y >= outer.y and inner.right <= outer.right and inner.top <= outer.top
+    epsilon = 0.05
+    return inner.x >= outer.x - epsilon and inner.y >= outer.y - epsilon and inner.right <= outer.right + epsilon and inner.top <= outer.top + epsilon

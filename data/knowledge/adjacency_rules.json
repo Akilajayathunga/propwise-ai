@@ -1,13 +1,14 @@
 {
   "note": "Conceptual planning heuristics only. These are not statutory architectural rules.",
   "rules": [
-    {"from": "entrance", "to": "living_room", "preferred_max_distance_ft": 12},
-    {"from": "living_room", "to": "dining", "preferred_max_distance_ft": 16},
-    {"from": "dining", "to": "kitchen", "preferred_max_distance_ft": 14},
-    {"from": "kitchen", "to": "utility", "preferred_max_distance_ft": 12},
-    {"from": "master_bedroom", "to": "bathroom", "preferred_max_distance_ft": 18},
-    {"from": "bedroom", "to": "bathroom", "preferred_max_distance_ft": 22},
-    {"from": "family_lounge", "to": "bedroom", "preferred_max_distance_ft": 24},
-    {"from": "parking", "to": "entrance", "preferred_max_distance_ft": 24}
+    {"from": "entrance", "to": "living_room", "preferred_max_distance_ft": 10, "weight": 1.4},
+    {"from": "living_room", "to": "dining", "preferred_max_distance_ft": 14, "weight": 1.0},
+    {"from": "dining", "to": "kitchen", "preferred_max_distance_ft": 10, "weight": 1.6},
+    {"from": "kitchen", "to": "utility", "preferred_max_distance_ft": 10, "weight": 1.3},
+    {"from": "master_bedroom", "to": "bathroom", "preferred_max_distance_ft": 12, "weight": 1.6},
+    {"from": "bedroom", "to": "bathroom", "preferred_max_distance_ft": 18, "weight": 1.4},
+    {"from": "staircase", "to": "hallway", "preferred_max_distance_ft": 8, "weight": 1.5},
+    {"from": "family_lounge", "to": "bedroom", "preferred_max_distance_ft": 22, "weight": 0.8},
+    {"from": "parking", "to": "entrance", "preferred_max_distance_ft": 24, "weight": 1.0}
   ]
 }

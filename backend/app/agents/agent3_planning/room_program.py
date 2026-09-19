@@ -13,15 +13,26 @@ def load_room_sizes() -> dict:
         return json.load(handle)
 
 
-def _room(room_id: str, room_type: str, label: str, required: bool, priority: int, floor: int | None, sizes: dict) -> RoomRequirement:
+def _room(
+    room_id: str,
+    room_type: str,
+    label: str,
+    required: bool,
+    priority: int,
+    floor: int | None,
+    sizes: dict,
+    preferred_multiplier: float = 1.0,
+) -> RoomRequirement:
     info = sizes[room_type]
+    preferred_area = float(info["preferred_area_sqft"]) * preferred_multiplier
+    preferred_area = min(float(info["maximum_area_sqft"]), max(float(info["minimum_area_sqft"]), preferred_area))
     return RoomRequirement(
         id=room_id,
         type=room_type,
         label=label,
         required=required,
         priority=priority,
-        preferred_area=float(info["preferred_area_sqft"]),
+        preferred_area=round(preferred_area, 2),
         minimum_area=float(info["minimum_area_sqft"]),
         floor_preference=floor,
     )
@@ -32,11 +43,13 @@ def build_room_program(request: PlanningRequest) -> list[RoomRequirement]:
     bedrooms = request.bedrooms or 3
     bathrooms = request.bathrooms or max(1, min(bedrooms, 2))
     floors = request.floors or 1
+    family_size_factor = min(1.45, 1.0 + max(0, bedrooms - 2) * 0.12)
+    kitchen_factor = min(1.35, 1.0 + max(0, bedrooms - 2) * 0.08 + max(0, bathrooms - 2) * 0.05)
     rooms = [
         _room("entrance", "entrance", "Entrance", True, 10, 1, sizes),
-        _room("living", "living_room", "Living Room", True, 10, 1, sizes),
+        _room("living", "living_room", "Living Room", True, 10, 1, sizes, family_size_factor),
         _room("dining", "dining", "Dining", True, 8, 1, sizes),
-        _room("kitchen", "kitchen", "Kitchen", True, 9, 1, sizes),
+        _room("kitchen", "kitchen", "Kitchen", True, 9, 1, sizes, kitchen_factor),
         _room("master_bedroom", "master_bedroom", "Master Bedroom", True, 10, floors, sizes),
     ]
 

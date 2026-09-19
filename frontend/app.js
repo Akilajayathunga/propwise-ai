@@ -17,6 +17,26 @@ const modalContent = document.querySelector("#modal-content");
 const modalClose = document.querySelector("#modal-close");
 
 let latestOptions = [];
+let pendingRequirements = null;
+let pendingQuestion = null;
+
+const planningQuestions = [
+  {
+    key: "bedrooms",
+    label: "bedroom count",
+    question: "How many bedrooms should the house have? Example: 3 bedrooms.",
+  },
+  {
+    key: "bathrooms",
+    label: "bathroom count",
+    question: "How many bathrooms should the house have? Example: 2 bathrooms.",
+  },
+  {
+    key: "floors",
+    label: "floor count",
+    question: "How many floors should the house have? Example: 2 floors.",
+  },
+];
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -30,31 +50,18 @@ form.addEventListener("submit", async (event) => {
   resetResults("Understanding your request...");
 
   try {
-    const requirements = await postJson("/api/v1/requirements/parse", { query });
-    showRequirements(requirements);
+    const requirements = pendingRequirements && pendingQuestion
+      ? mergeFollowUpAnswer(pendingRequirements, pendingQuestion, query)
+      : await postJson("/api/v1/requirements/parse", { query });
 
-    if (shouldSearchProperties(requirements.intent)) {
-      message.textContent = requirements.intent === "LAND_AND_HOUSE" ? "Finding land options..." : "Searching properties...";
-      const searchResult = await postJson("/api/v1/property-search", { requirements, top_n: 10 });
-
-      if (requirements.intent === "LAND_AND_HOUSE") {
-        message.textContent = "Generating land and house combinations...";
-        const evaluation = await postJson("/api/v1/planning/evaluate-land-house", {
-          requirements,
-          property_results: searchResult.results,
-        });
-        showLandHouseOptions(evaluation, requirements);
-      } else {
-        showProperties(searchResult);
-      }
+    if (!requirements) {
+      showFollowUpError(pendingQuestion);
+      return;
     }
 
-    if (requirements.intent === "PLAN_HOUSE") {
-      message.textContent = "Generating conceptual plan...";
-      showPlanning(await postJson("/api/v1/planning/generate", buildPlanningRequest(requirements, null)));
-    }
-
-    message.classList.add("hidden");
+    pendingRequirements = null;
+    pendingQuestion = null;
+    await continueWithRequirements(requirements);
   } catch (error) {
     showError(error instanceof Error ? error.message : "Unable to reach the backend.");
   } finally {
@@ -77,9 +84,44 @@ async function postJson(path, body) {
   return response.json();
 }
 
+async function continueWithRequirements(requirements) {
+  showRequirements(requirements);
+
+  const followUp = nextPlanningQuestion(requirements);
+  if (followUp) {
+    askFollowUp(requirements, followUp);
+    return;
+  }
+
+  queryInput.placeholder = "Enter your property request";
+
+  if (shouldSearchProperties(requirements.intent)) {
+    message.textContent = requirements.intent === "LAND_AND_HOUSE" ? "Finding land options..." : "Searching properties...";
+    const searchResult = await postJson("/api/v1/property-search", { requirements, top_n: 10 });
+
+    if (requirements.intent === "LAND_AND_HOUSE") {
+      message.textContent = "Generating land and house combinations...";
+      const evaluation = await postJson("/api/v1/planning/evaluate-land-house", {
+        requirements,
+        property_results: searchResult.results,
+      });
+      showLandHouseOptions(evaluation, requirements);
+    } else {
+      showProperties(searchResult);
+    }
+  }
+
+  if (requirements.intent === "PLAN_HOUSE") {
+    message.textContent = "Generating conceptual plan...";
+    showPlanning(await postJson("/api/v1/planning/generate", buildPlanningRequest(requirements, null)));
+  }
+
+  message.classList.add("hidden");
+}
+
 function setLoading(isLoading) {
   submitButton.disabled = isLoading;
-  submitButton.textContent = isLoading ? "Working..." : "Send";
+  submitButton.textContent = isLoading ? "Working..." : pendingQuestion ? "Send details" : "Send";
 }
 
 function resetResults(text) {
@@ -90,6 +132,25 @@ function resetResults(text) {
   jsonBlock.classList.add("hidden");
   propertiesPanel.classList.add("hidden");
   planningPanel.classList.add("hidden");
+}
+
+function askFollowUp(requirements, question) {
+  pendingRequirements = requirements;
+  pendingQuestion = question;
+  message.className = "follow-up-text";
+  message.textContent = question.question;
+  message.classList.remove("hidden");
+  queryInput.value = "";
+  queryInput.placeholder = question.question;
+  queryInput.focus();
+  setLoading(false);
+}
+
+function showFollowUpError(question) {
+  message.className = "error-text";
+  message.textContent = `Please enter the ${question?.label || "missing detail"}. Example: ${question?.key === "bathrooms" ? "2 bathrooms" : "2"}.`;
+  message.classList.remove("hidden");
+  queryInput.focus();
 }
 
 function showError(errorMessage) {
@@ -546,6 +607,90 @@ function shouldSearchProperties(intent) {
   return ["BUY_PROPERTY", "RENT_PROPERTY", "BUY_LAND", "LAND_AND_HOUSE", "COMPARE_PROPERTIES"].includes(intent);
 }
 
+function isPlanningIntent(intent) {
+  return ["PLAN_HOUSE", "LAND_AND_HOUSE"].includes(intent);
+}
+
+function nextPlanningQuestion(requirements) {
+  if (!isPlanningIntent(requirements.intent)) return null;
+  if (requirements.intent === "PLAN_HOUSE" && !requirements.land_size_perches) {
+    return {
+      key: "land_size_perches",
+      label: "land size",
+      question: "What is the land size in perches? Example: 10 perches.",
+    };
+  }
+  return planningQuestions.find((question) => !requirements[question.key]) || null;
+}
+
+function mergeFollowUpAnswer(requirements, question, answer) {
+  const value = question.key === "land_size_perches" ? extractDecimalAnswer(answer) : extractCountAnswer(answer);
+  if (!value) return null;
+  return {
+    ...requirements,
+    [question.key]: value,
+    original_query: `${requirements.original_query || ""} ${answer}`.trim(),
+    missing_information: (requirements.missing_information || []).filter((field) => field !== question.key),
+  };
+}
+
+function extractDecimalAnswer(text) {
+  const match = String(text || "").match(/(\d+(?:\.\d+)?)/);
+  return match ? Number(match[1]) : extractCountAnswer(text);
+}
+
+function extractCountAnswer(text) {
+  const normalized = String(text || "").toLowerCase();
+  const digitMatch = normalized.match(/\d+/);
+  if (digitMatch) return Number(digitMatch[0]);
+
+  const words = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+    eka: 1,
+    dekak: 2,
+    thunak: 3,
+    hatharak: 4,
+    pahak: 5,
+    hayak: 6,
+    hathak: 7,
+    atak: 8,
+    namayak: 9,
+    dahayak: 10,
+    "එක": 1,
+    "එකක්": 1,
+    "දෙක": 2,
+    "දෙකක්": 2,
+    "තුන": 3,
+    "තුනක්": 3,
+    "හතර": 4,
+    "හතරක්": 4,
+    "පහ": 5,
+    "පහක්": 5,
+    "හය": 6,
+    "හයක්": 6,
+    "හත": 7,
+    "හතක්": 7,
+    "අට": 8,
+    "අටක්": 8,
+    "නවය": 9,
+    "නවයක්": 9,
+    "දහය": 10,
+    "දහයක්": 10,
+  };
+
+  const match = Object.entries(words).find(([word]) => normalized.includes(word));
+  return match ? match[1] : null;
+}
+
 function summaryItem(label, value) {
   const item = document.createElement("div");
   item.className = "field-item";
@@ -728,6 +873,9 @@ function planAdjustmentMessage(source) {
   }
   if (/parking space assumed/i.test(warningText)) {
     return "Parking count was not mentioned. Using 1 parking space for this concept plan.";
+  }
+  if (/configured standard finish profile/i.test(warningText)) {
+    return "Please add the missing planning details so a clearer concept plan can be generated.";
   }
   return firstWarning(source) || "Please add key details like bathroom count, bedrooms, floors, land size, or budget so a clearer plan can be generated.";
 }
