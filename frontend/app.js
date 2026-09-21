@@ -253,7 +253,7 @@ function optionCard(option, index) {
     const empty = document.createElement("div");
     empty.className = "plan-empty-state";
     const strong = document.createElement("strong");
-    strong.textContent = "More details needed";
+    strong.textContent = "Floor plan unavailable";
     const small = document.createElement("span");
     small.textContent = planAdjustmentMessage(option);
     empty.append(strong, small);
@@ -347,7 +347,7 @@ function showPlanning(result) {
 
   warnings.textContent = result.warnings?.join(" ") || "";
   warnings.classList.toggle("hidden", !result.warnings?.length);
-  renderPlanPreview(preview, floorTabs, result.files?.png?.length ? result.files.png : result.files?.svg || [], result.warnings);
+  renderPlanPreview(preview, floorTabs, result.files?.png?.length ? result.files.png : result.files?.svg || [], result);
   jsonOutput.textContent = JSON.stringify(result, null, 2);
 }
 
@@ -471,6 +471,12 @@ function openAdDetailsModal(option) {
   const captionText = document.createElement("p");
   captionText.textContent = caption;
   captionPanel.append(captionTitle, captionText);
+  if (/(?:\.{3}|…)\s*$/u.test(caption)) {
+    const captionNotice = document.createElement("p");
+    captionNotice.className = "caption-notice";
+    captionNotice.textContent = "This caption appears shortened in the source listing data. All available caption text is shown; the remaining text is not available in this dataset.";
+    captionPanel.appendChild(captionNotice);
+  }
 
   const textBox = document.createElement("textarea");
   textBox.className = "ad-textbox";
@@ -480,7 +486,7 @@ function openAdDetailsModal(option) {
   const fullAdPanel = document.createElement("div");
   fullAdPanel.className = "full-ad-panel";
   const fullAdTitle = document.createElement("h3");
-  fullAdTitle.textContent = "Full ad record";
+  fullAdTitle.textContent = "Available ad details";
   fullAdPanel.append(fullAdTitle, textBox);
 
   modalContent.append(title, header, address, captionPanel, features, fullAdPanel);
@@ -554,7 +560,7 @@ function renderPlanPreview(container, tabs, svgPaths, planNoticeSource = null) {
     const empty = document.createElement("div");
     empty.className = "plan-empty-state";
     const strong = document.createElement("strong");
-    strong.textContent = "More details needed";
+    strong.textContent = "Floor plan unavailable";
     const small = document.createElement("span");
     small.textContent = planAdjustmentMessage(planNoticeSource);
     empty.append(strong, small);
@@ -867,6 +873,12 @@ function firstWarning(option) {
 function planAdjustmentMessage(source) {
   const warnings = Array.isArray(source) ? source : source?.warnings || source?.technical_data?.warnings || [];
   const warningText = Array.isArray(warnings) ? warnings.join(" ") : String(warnings || "");
+  if (/below minimum (area|dimensions)/i.test(warningText)) {
+    return "No valid layout generated for this plot. Some rooms fall below minimum sizes. Provide exact plot dimensions or adjust the house requirements.";
+  }
+  if (source?.planning?.constraints_satisfied === false || source?.constraints_satisfied === false) {
+    return "No valid layout generated for this plot. The generated layouts did not meet the planning constraints. Provide exact plot dimensions or adjust the house requirements.";
+  }
   const bathroomMatch = warningText.match(/(\d+)\s+bathroom\(s\)\s+assumed/i);
   if (bathroomMatch) {
     return `Bathroom count was not mentioned. Using ${bathroomMatch[1]} bathroom${bathroomMatch[1] === "1" ? "" : "s"} for this concept plan.`;

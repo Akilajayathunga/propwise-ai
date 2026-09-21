@@ -651,7 +651,14 @@ pre {
 .caption-panel p {
   margin: 0;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   line-height: 1.65;
+}
+
+.caption-panel .caption-notice {
+  margin-top: 12px;
+  font-size: 0.875rem;
+  color: var(--accent-dark);
 }
 
 .ad-section h3 {
