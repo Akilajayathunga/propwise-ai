@@ -97,7 +97,7 @@ async function continueWithRequirements(requirements) {
 
   if (shouldSearchProperties(requirements.intent)) {
     message.textContent = requirements.intent === "LAND_AND_HOUSE" ? "Finding land options..." : "Searching properties...";
-    const searchResult = await postJson("/api/v1/property-search", { requirements, top_n: 10 });
+    const searchResult = await postJson("/api/v1/property-search", { requirements, top_n: 30 });
 
     if (requirements.intent === "LAND_AND_HOUSE") {
       message.textContent = "Generating land and house combinations...";
