@@ -1,0 +1,28 @@
+{
+  "listing_id": "land-kottawa-001",
+  "title": "Land for sale in Kottawa",
+  "district": "Colombo",
+  "location": "Kottawa",
+  "address": "Kottawa, Colombo",
+  "listing_type": "sale",
+  "property_type": "land",
+  "price_lkr": 13000000,
+  "price_basis": "total",
+  "sale_total_price_lkr": 13000000,
+  "rent_monthly_lkr": null,
+  "bedrooms": null,
+  "bathrooms": null,
+  "land_size_perches": 15,
+  "house_size_sqft": null,
+  "property_size_sqft": null,
+  "features": null,
+  "is_verified": true,
+  "posted_date": "2024-01-01",
+  "geo_region": "LK-11",
+  "membership_level": "premium",
+  "score": 0.88,
+  "score_breakdown": {
+    "budget_fit": 0.3,
+    "location": 0.2
+  }
+}

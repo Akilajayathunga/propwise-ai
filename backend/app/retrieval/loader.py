@@ -17,6 +17,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from app.retrieval.contact import NOT_MENTIONED, extract_contact_number
+
 # Columns that must be numeric; missing / unparseable values become NaN.
 _NUMERIC_COLUMNS = [
     "price_lkr",
@@ -60,11 +62,30 @@ def _normalise(df: pd.DataFrame) -> pd.DataFrame:
         "listing_id", "title", "description", "listing_type", "property_type",
         "district", "location", "address", "price_basis", "land_type",
         "property_subtype", "features", "posted_date", "deactivation_date",
-        "geo_region", "membership_level", "member_since",
+        "geo_region", "membership_level", "member_since", "contact_number",
     ]
     for col in str_cols:
         if col in df.columns:
             df[col] = df[col].where(df[col].notna(), other=None)
+
+    if "contact_number" not in df.columns:
+        df["contact_number"] = df.apply(
+            lambda row: extract_contact_number(
+                row.get("description"),
+                row.get("title"),
+                row.get("address"),
+                row.get("features"),
+            ),
+            axis=1,
+        )
+    else:
+        df["contact_number"] = df.apply(
+            lambda row: row.get("contact_number")
+            if row.get("contact_number") not in {None, ""}
+            else extract_contact_number(row.get("description"), row.get("title"), row.get("address"), row.get("features")),
+            axis=1,
+        )
+        df["contact_number"] = df["contact_number"].fillna(NOT_MENTIONED)
 
     return df
 

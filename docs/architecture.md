@@ -46,3 +46,16 @@ Agent 2 and Agent 3 are sequential for `LAND_AND_HOUSE` because Agent 3 may requ
 
 This document describes future architecture only. LangGraph orchestration and agent logic are not implemented in the foundation phase.
 
+## Agent 3 Planning Output
+
+Agent 3 supports direct `PLAN_HOUSE` planning and `LAND_AND_HOUSE` planning with selected land context from Agent 2. It creates deterministic conceptual geometry, validates hard constraints, ranks valid candidates, and writes all outputs from one canonical plan model.
+
+Generated outputs are stored under `storage/plans/{plan_id}/`:
+
+- `plan.json`
+- floor-level SVG files
+- floor-level PNG previews
+- `propwise_plan.dxf`
+- `summary.json`
+
+These files are conceptual planning artifacts only. They are not approved architectural, structural, engineering, quantity-surveying, legal, planning, or construction documents.
