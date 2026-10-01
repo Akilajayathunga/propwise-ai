@@ -107,7 +107,7 @@ async function continueWithRequirements(requirements) {
     : "Retrieving candidates and preparing final recommendations...";
   const request = {
     requirements,
-    top_k: Number(document.querySelector("#recommendation-count").value),
+    top_k: 10,
     explanation_enabled: document.querySelector("#explanation-enabled").checked,
   };
   if (requirements.intent === "PLAN_HOUSE") request.owned_land = { ...ownedLandInput };
@@ -117,6 +117,16 @@ async function continueWithRequirements(requirements) {
   if (result.status === "NEEDS_CLARIFICATION") {
     const next = nextPlanningQuestion(requirements);
     if (next) { askFollowUp(requirements, next); return; }
+  }
+
+  // Separately retrieve all Agent 2 results (>= 50% relevance) for the properties panel
+  if (shouldSearchProperties(requirements.intent)) {
+    try {
+      const searchResult = await postJson("/api/v1/property-search", { requirements });
+      showProperties(searchResult);
+    } catch (_) {
+      // Non-fatal: Agent 4 result is already shown above
+    }
   }
 
   message.classList.add("hidden");

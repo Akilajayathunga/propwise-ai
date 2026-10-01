@@ -66,7 +66,7 @@ def test_search_intents_use_only_agent2_then_agent4(api, intent, listing_type, p
     data = result.json()
     assert data["recommendations"][0]["listing_id"] == prop.listing_id
     assert data["explanation_status"] == "DETERMINISTIC"
-    assert service.search.call_args.kwargs["top_n"] == 30
+    assert service.search.call_args.kwargs["top_n"] == 100
     assert service.search.call_count == 1
     service.direct_plan.assert_not_called()
     service.combined_plan.assert_not_called()

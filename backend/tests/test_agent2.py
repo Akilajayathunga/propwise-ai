@@ -6,8 +6,8 @@ from app.schemas.requirements import Intent, ParsedRequirements
 def test_agent2_defaults_to_thirty_results() -> None:
     req = ParsedRequirements(original_query="test", intent=Intent.GENERAL_PROPERTY_QUERY)
 
-    assert PropertySearchAgent.TOP_N_DEFAULT == 30
-    assert PropertySearchRequest(requirements=req).top_n == 30
+    assert PropertySearchAgent.TOP_N_DEFAULT == 100
+    assert PropertySearchRequest(requirements=req).top_n == 100
 
 
 def test_agent2_buy_property_pipeline() -> None:

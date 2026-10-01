@@ -76,4 +76,4 @@ class PropertySearchRequest(BaseModel):
     """Request body for POST /api/v1/property-search."""
 
     requirements: ParsedRequirements
-    top_n: int = Field(default=30, ge=1, le=50, description="Maximum results to return")
+    top_n: int = Field(default=100, ge=1, le=200, description="Maximum results to return")
