@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.schemas.planning import LandHouseEvaluationResponse, PlanningResponse
 from app.schemas.property import Agent2Result, PropertyResult
 from app.schemas.requirements import ParsedRequirements
+from app.agents.agent4_recommendation.explanation_models import ExplanationAttachment
 
 
 class Contract(BaseModel):
@@ -194,4 +195,5 @@ class RecommendationResponse(Contract):
     coverage: CandidateCoverage = Field(default_factory=CandidateCoverage)
     warnings: list[str] = Field(default_factory=list)
     clarification_questions: list[str] = Field(default_factory=list)
-    explanation_status: Literal["DETERMINISTIC"] = "DETERMINISTIC"
+    explanation_status: Literal["DETERMINISTIC", "LLM", "DETERMINISTIC_FALLBACK"] = "DETERMINISTIC"
+    explanation: ExplanationAttachment | None = None
