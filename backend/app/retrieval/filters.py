@@ -57,11 +57,15 @@ def _mask_property_type(df: pd.DataFrame, requirements: ParsedRequirements) -> p
     return df["property_type"].str.lower().isin(allowed)
 
 
-def _mask_location(df: pd.DataFrame, requirements: ParsedRequirements) -> pd.Series:
+def _mask_location(
+    df: pd.DataFrame,
+    requirements: ParsedRequirements,
+    relax: bool = False,
+) -> pd.Series:
     """Match location or district against CSV location, district, and address columns.
 
-    Matching is case-insensitive substring search so 'Kottawa' matches
-    'kottawa road dolekade' in the address column.
+    In strict mode (relax=False), if a location is provided, it must match.
+    In relaxed mode (relax=True), matching the inferred district is sufficient.
     """
     location = requirements.location
     district = requirements.district
@@ -71,7 +75,17 @@ def _mask_location(df: pd.DataFrame, requirements: ParsedRequirements) -> pd.Ser
 
     mask = pd.Series(False, index=df.index)
 
-    for req_val in filter(None, [location, district]):
+    # In strict mode, if we have a specific location, only search for that.
+    # In relaxed mode (or if we only have a district), we can search for the district.
+    search_terms = []
+    if location:
+        search_terms.append(location)
+        if relax and district:
+            search_terms.append(district)
+    elif district:
+        search_terms.append(district)
+
+    for req_val in search_terms:
         pattern = re.escape(req_val.strip())
         for col in ("location", "district", "address"):
             if col in df.columns:
@@ -168,7 +182,7 @@ def apply_hard_filters(
 
     mask &= _mask_listing_type(df, requirements)
     mask &= _mask_property_type(df, requirements)
-    mask &= _mask_location(df, requirements)
+    mask &= _mask_location(df, requirements, relax=relax)
     mask &= _mask_max_budget(df, requirements, relax=relax)
     mask &= _mask_min_budget(df, requirements)
     mask &= _mask_bedrooms(df, requirements, relax=relax)

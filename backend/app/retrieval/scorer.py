@@ -24,12 +24,12 @@ import pandas as pd
 from app.schemas.requirements import Intent, ParsedRequirements
 
 # ── Weights ──────────────────────────────────────────────────────────────────
-_W_BUDGET = 0.35
-_W_LOCATION = 0.20
+_W_LOCATION = 0.40
+_W_BUDGET = 0.25
 _W_BEDROOMS = 0.15
-_W_VERIFIED = 0.12
 _W_SIZE = 0.10
-_W_RECENCY = 0.08
+_W_VERIFIED = 0.06
+_W_RECENCY = 0.04
 
 
 # ── Individual signal computers ───────────────────────────────────────────────
@@ -64,10 +64,10 @@ def _signal_location(df: pd.DataFrame, requirements: ParsedRequirements) -> pd.S
 
     if location:
         loc_col = df["location"].fillna("").str.lower()
-        signal = signal.where(
-            ~loc_col.str.contains(location, regex=False, na=False),
-            other=1.0,
-        )
+        addr_col = df["address"].fillna("").str.lower() if "address" in df.columns else pd.Series("", index=df.index)
+        
+        exact_match = loc_col.str.contains(location, regex=False, na=False) | addr_col.str.contains(location, regex=False, na=False)
+        signal = signal.where(~exact_match, other=1.0)
 
     if district:
         dist_col = df["district"].fillna("").str.lower()

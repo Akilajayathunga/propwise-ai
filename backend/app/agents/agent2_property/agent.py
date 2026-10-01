@@ -15,7 +15,7 @@ class PropertySearchAgent:
     Finally, it scores, ranks, and analyses the resulting properties.
     """
     
-    TOP_N_DEFAULT = 30
+    TOP_N_DEFAULT = 100
 
     def __init__(self, dataset_path: str | None = None) -> None:
         self.dataset_path = dataset_path
@@ -54,7 +54,10 @@ class PropertySearchAgent:
         # 4. Score and Rank
         scored_df = scorer.score_dataframe(filtered_df, requirements)
         
-        # 5. Extract Top N
+        # 5. Filter for > 50% relevance and Extract Top N
+        # The user requested "all the result that above 50%".
+        # We strictly enforce the >= 50% threshold.
+        scored_df = scored_df[scored_df["score"] >= 0.50]
         top_n_df = scored_df.head(top_n)
         
         # 6. Build final models
