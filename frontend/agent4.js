@@ -83,7 +83,7 @@
     const card = el("article", null, "a4-card");
     card.appendChild(el("p", recommended ? `Final rank ${item.rank}` : "Alternative / outside shortlist", "eyebrow"));
     card.appendChild(el("h3", item.title || item.listing_id));
-    card.appendChild(el("p", `Listing ${item.listing_id} ? ${label(item.eligibility)}`, "muted"));
+    card.appendChild(el("p", `Listing ${item.listing_id} — ${label(item.eligibility)}`, "muted"));
     card.appendChild(el("p", `Decision-support score: ${Number(item.final_recommendation_score).toFixed(1)} / 100`, "a4-score"));
     if (explanation) {
       card.appendChild(el("p", explanation.reason));
@@ -123,21 +123,33 @@
     const root = panel();
     root.replaceChildren();
     root.classList.remove("hidden");
-    root.appendChild(el("p", "Agent 4 ? Recommendation & Decision Support", "eyebrow"));
-    root.appendChild(el("h2", label(response.status)));
+    root.appendChild(el("p", "RECOMMENDATION & DECISION SUPPORT", "eyebrow"));
+    const statusHeadings = {
+      OK: "Recommendations ready",
+      NEEDS_CLARIFICATION: "More information needed",
+      NO_SUITABLE_OPTION: "No suitable option",
+      INSUFFICIENT_EVIDENCE: "Insufficient evidence",
+    };
+    root.appendChild(el("h2", statusHeadings[response.status] || "Recommendation result"));
     const sources = { LLM: "Grounded AI explanation", DETERMINISTIC_FALLBACK: "Deterministic fallback", DETERMINISTIC: "Deterministic only" };
     root.appendChild(el("p", `Explanation source: ${sources[response.explanation_status] || "Unknown"}`, "muted"));
     const evidence = response.presentation || {};
     const coverage = response.coverage || {};
+    const coverageLimits = [
+      coverage.retrieval_truncated === true ? "Retrieval covered only part of the matching candidates" : null,
+      coverage.planning_coverage_limited === true ? "Some retrieved candidates were not assessed by planning" : null,
+    ].filter(Boolean);
     grid(root, [
       ["Retrieved / total matching", `${coverage.retrieved_count ?? 0} / ${coverage.total_matching_candidates ?? "Unknown"}`],
       ["Planning-assessed candidates", coverage.planning_assessed_count ?? 0],
       ["Eligible or conditional candidates ranked", coverage.ranked_count ?? 0],
-      ["Coverage limits", [coverage.retrieval_truncated ? "Retrieval truncated" : null,
-        coverage.planning_coverage_limited ? "Some retrieved candidates lack planning evidence" : null].filter(Boolean).join("; ") || "No truncation reported"],
+      ...(coverageLimits.length ? [["Coverage limits", coverageLimits.join("; ")]] : []),
     ]);
-    root.appendChild(el("p", coverage.scope, "plan-notice"));
-    if (evidence.retrieval?.relaxed_filters) root.appendChild(el("p", "Retrieval filters were relaxed. Agent 4 checked the original requirements.", "plan-notice"));
+    const scopeNote = coverage.scope === "Best among the evaluated retrieved candidates; not the entire property market."
+      ? "Recommendation scope: based on the evaluated retrieved candidates only."
+      : coverage.scope;
+    root.appendChild(el("p", scopeNote, "muted"));
+    if (evidence.retrieval?.relaxed_filters === true) root.appendChild(el("p", "Search was broadened to find fallback options. These options were still evaluated against your original requirements.", "muted"));
     list(root, "Warnings", response.warnings);
     list(root, "Retrieval warnings", evidence.retrieval?.warnings);
     list(root, "Details needed", response.clarification_questions);
@@ -164,7 +176,7 @@
     }
     if (response.alternatives?.length) {
       const alternatives = el("details", null, "a4-details");
-      alternatives.appendChild(el("summary", `Other evaluated candidates (${response.alternatives.length}) ? may violate requirements or lack evidence`));
+      alternatives.appendChild(el("summary", `Other evaluated candidates (${response.alternatives.length}) — may violate requirements or lack evidence`));
       const cards = el("div", null, "a4-cards");
       response.alternatives.forEach(item => cards.appendChild(recommendationCard(item, raw.get(item.listing_id), options.get(item.listing_id), explanations.get(item.listing_id), false)));
       alternatives.appendChild(cards);
