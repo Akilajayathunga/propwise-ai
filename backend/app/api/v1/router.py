@@ -1,12 +1,16 @@
 from fastapi import APIRouter
 
+from app.api.v1.planning import router as planning_router
 from app.api.v1.property_search import router as property_search_router
 from app.api.v1.requirements import router as requirements_router
+from app.api.v1.recommendation import router as recommendation_router
 
 
 router = APIRouter()
 router.include_router(requirements_router)
 router.include_router(property_search_router)
+router.include_router(planning_router)
+router.include_router(recommendation_router)
 
 
 @router.get("/health")

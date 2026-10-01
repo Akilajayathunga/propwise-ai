@@ -15,7 +15,7 @@ class PropertySearchAgent:
     Finally, it scores, ranks, and analyses the resulting properties.
     """
     
-    TOP_N_DEFAULT = 10
+    TOP_N_DEFAULT = 30
 
     def __init__(self, dataset_path: str | None = None) -> None:
         self.dataset_path = dataset_path

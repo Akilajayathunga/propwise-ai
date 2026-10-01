@@ -73,6 +73,8 @@ KNOWN_SRI_LANKAN_LOCATIONS = {
     "මහරගම": "Maharagama",
     "කොළඹ": "Colombo",
     "මාලඹේ": "Malabe",
+    "නුවර": "Kandy",
+    "මහනුවර": "Kandy",
 }
 
 LOCATION_DISTRICTS = {
@@ -80,6 +82,7 @@ LOCATION_DISTRICTS = {
     "Kottawa": "Colombo",
     "Maharagama": "Colombo",
     "Malabe": "Colombo",
+    "Kandy": "Kandy",
 }
 
 
@@ -205,13 +208,20 @@ def extract_budget(text: str) -> dict[str, int | None]:
     result = {
         "minimum_budget_lkr": None,
         "maximum_budget_lkr": None,
+        "maximum_land_budget_lkr": None,
         "total_project_budget_lkr": None,
         "construction_budget_lkr": None,
     }
     for start, end, value in parse_money(text):
-        window = text[max(0, start - 40) : min(len(text), end + 40)].lower()
-        if re.search(r"\b(total|overall|entire project)\b|මුළු|සම්පූර්ණ", window):
+        window = text[max(0, start - 90) : min(len(text), end + 50)].lower()
+        land_and_house_context = re.search(r"(ඉඩම|land|plot).*(ගෙයක්|නිවස|house|home|හදන්න|build|construct)", window) or re.search(
+            r"(ගෙයක්|නිවස|house|home|හදන්න|build|construct).*(ඉඩම|land|plot)",
+            window,
+        )
+        if re.search(r"\b(total|overall|entire project)\b|both\s+the\s+land\s+and\s+house|land\s+and\s+house\b|මුළු|සම්පූර්ණ", window) or land_and_house_context:
             result["total_project_budget_lkr"] = value
+        elif re.search(r"\b(land|plot)\s+(?:budget|price|cost)|(?:budget|price|cost)\s+(?:for\s+)?(?:land|plot)\b|ඉඩම.*අයවැය|ඉඩම.*මිල", window):
+            result["maximum_land_budget_lkr"] = value
         elif re.search(r"\b(construction|build|building)\b|ඉදිකිරීම්|හදන්න|සාදන්න", window):
             result["construction_budget_lkr"] = value
         elif re.search(r"\b(above|over|minimum|min|from|at least)\b|වැඩි|අවම", window):
@@ -223,7 +233,7 @@ def extract_budget(text: str) -> dict[str, int | None]:
 
 def extract_location(text: str) -> str | None:
     for sinhala_name, normalized_name in KNOWN_SRI_LANKAN_LOCATIONS.items():
-        if sinhala_name in text:
+        if re.search(rf"{re.escape(sinhala_name)}(?:ින්|ට|වල|අවට|දී)?", text):
             return normalized_name
 
     sinhala_marker_match = re.search(

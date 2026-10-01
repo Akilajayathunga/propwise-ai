@@ -10,9 +10,11 @@ class PropertyResult(BaseModel):
 
     listing_id: str
     title: str
+    description: str | None = None
     district: str | None = None
     location: str | None = None
     address: str | None = None
+    contact_number: str | None = None
     listing_type: str
     property_type: str
     price_lkr: float | None = None
@@ -74,4 +76,4 @@ class PropertySearchRequest(BaseModel):
     """Request body for POST /api/v1/property-search."""
 
     requirements: ParsedRequirements
-    top_n: int = Field(default=10, ge=1, le=50, description="Maximum results to return")
+    top_n: int = Field(default=30, ge=1, le=50, description="Maximum results to return")

@@ -1,0 +1,25 @@
+.recommendation-panel {
+  grid-column: 1 / -1;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 24px;
+}
+.recommendation-panel h3 { margin-top: 24px; }
+.recommendation-panel h4 { margin: 16px 0 8px; }
+.recommendation-panel p, .recommendation-panel li { line-height: 1.55; overflow-wrap: anywhere; }
+.recommendation-panel li + li { margin-top: 6px; }
+.a4-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 20px; margin-top: 20px; }
+.a4-card { border: 1px solid var(--line); border-radius: 8px; padding: 20px; min-width: 0; }
+.a4-card > h3 { margin-top: 8px; }
+.a4-score { font-size: 20px; font-weight: 700; color: var(--accent-dark); }
+.a4-details { margin: 18px 0; border-top: 1px solid var(--line); padding-top: 12px; overflow-x: auto; }
+.a4-details summary { cursor: pointer; font-weight: 700; }
+.a4-preview { width: 100%; height: auto; max-height: 360px; object-fit: contain; border: 1px solid var(--line); margin-top: 12px; }
+.a4-controls { display: grid; gap: 12px; }
+.a4-controls input[type="number"] { max-width: 90px; padding: 8px; border: 1px solid var(--line); border-radius: 4px; }
+.a4-controls label { line-height: 1.5; }
+@media (max-width: 600px) {
+  .recommendation-panel, .a4-card { padding: 14px; }
+  .recommendation-panel .field-grid { grid-template-columns: 1fr; }
+}
