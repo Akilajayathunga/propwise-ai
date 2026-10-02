@@ -963,3 +963,161 @@ def test_compacted_evidence_still_rejects_cross_candidate_references():
     assert "required_notice_refs" in json.loads(provider.calls[0][1])
     assert_fallback(result)
     assert result.explanation.fallback_reason == "CROSS_CANDIDATE_EVIDENCE"
+
+
+@pytest.mark.parametrize("ref", [
+    "c0.budget.budget_lkr", "c0.budget.total_project.expected_lkr",
+    "c0.planning.constraints_satisfied", "c0.known_property_facts.location",
+    "comparison.0.expected_cost_difference_lkr", "notice.0",
+])
+def test_compact_land_house_exact_fact_citations_pass(ref):
+    ctx = rich_land_house_context()
+    decision = RecommendationAgent().recommend(ctx)
+    package = build_evidence(ctx, decision)
+    wire = json.loads(package.json_text)
+    assert "required_notice_refs" in wire
+    assert len(package.json_text.encode("utf-8")) <= 64000
+    assert len(wire["items"]) == len(decision.recommendations) + len(decision.alternatives) == 4
+    assert [item["alias"] for item in wire["items"]] == ["c0", "c1", "c2", "c3"]
+    assert wire["facts"] == {key: fact["value"] for key, fact in package.facts.items()}
+    assert all(key in package.facts for key in wire["required_notice_refs"])
+    payload = valid_payload(wire)
+    # Exercise full validation and rendering, not just registry membership.
+    if ref.startswith("comparison."):
+        payload["comparison_summary"] = [statement(ref)]
+    elif ref.startswith("notice."):
+        payload["warnings"] = [statement(ref)]
+    else:
+        payload["properties"][0]["reason"] = statement(ref)
+        assert package.facts[ref]["owners"] == [wire["items"][0]["listing_id"]]
+    validate_draft(ExplanationDraft.model_validate(payload), package)
+    result = ExplanationService(FakeProvider(responses=[json.dumps(payload)])).explain(ctx, decision)
+    assert result.explanation_status == "LLM"
+    assert result.explanation.fallback_reason is None
+
+
+@pytest.mark.parametrize("ref", [
+    "total_project_budget_lkr",  # Reproduced live: requirement field cited by summary.
+    "c0.budget.total_project_budget_lkr", "c0.planning.expected_cost",
+    "required_notice_refs.0", "c0.budget.budget_lkr.value",
+    "comparisons.0.expected_cost_difference_lkr",
+])
+def test_non_fact_context_paths_still_fail_unknown_evidence(ref):
+    def mutate(payload):
+        payload["summary"] = statement(ref)
+    fake = FakeProvider(mutate)
+    result = explain(rich_land_house_context(), fake)
+    assert_fallback(result)
+    assert result.explanation.fallback_reason == "UNKNOWN_EVIDENCE"
+    assert result.explanation.attempts == 2
+    assert ref not in json.loads(fake.calls[0][1])["facts"]
+
+
+def test_unknown_evidence_fixed_repair_hint_does_not_replay_response():
+    ctx = rich_land_house_context()
+    package = build_evidence(ctx, RecommendationAgent().recommend(ctx))
+    bad = valid_payload(json.loads(package.json_text))
+    bad["summary"] = statement("total_project_budget_lkr", "rejected-provider-text-do-not-replay")
+    fake = FakeProvider(responses=[json.dumps(bad), None])
+    result = explain(ctx, fake)
+    assert result.explanation_status == "LLM"
+    assert result.explanation.attempts == 2
+    assert len(fake.calls) == 2
+    repair_prompt, evidence, _ = fake.calls[1]
+    assert repair_prompt == synthesis_prompt("UNKNOWN_EVIDENCE")
+    assert "Use only exact keys of the supplied facts object" in repair_prompt
+    assert "never required_notice_refs.N" in repair_prompt
+    assert "rejected-provider-text-do-not-replay" not in repair_prompt + evidence
+    assert fake.calls[0][1] == evidence
+
+
+def test_current_prompt_explains_both_fact_shapes_and_context_boundary():
+    assert PROMPT_VERSION == "propwise-agent4-explanation-v5"
+    assert PROMPT_VERSION in SYSTEM_PROMPT
+    assert "Copy keys verbatim" in SYSTEM_PROMPT
+    assert "total_project_budget_lkr is a requirement field, not a fact key" in SYSTEM_PROMPT
+    assert "never append .value" in SYSTEM_PROMPT
+    assert "never required_notice_refs.0" in SYSTEM_PROMPT
+    assert "only their\nregistered scalar fact keys are citable" in SYSTEM_PROMPT
+
+
+# Exact statements observed in controlled live diagnostics; no provider output
+# is replayed to repair. The comparative example below is a synthetic safety case.
+LIVE_LAND_HOUSE_PROSE_FAILURES = [
+    ("reason", "The property is {{c0.eligibility}} because while the land price fits, the total project estimate reflects potential budget sensitivities.",
+     ["c0.eligibility", "c0.uncertainty.0"], "WRONG_FACT_DOMAIN", "c0.eligibility", "Recorded eligibility: {{c0.eligibility}}."),
+    ("next_steps", "Verify plot dimensions for {{c0.listing_id}} and {{c1.listing_id}}.",
+     ["c0.listing_id", "c1.listing_id"], "WRONG_FACT_DOMAIN", "c0.planning.exact_site_fit_verified", "Site-fit assessment: {{c0.planning.exact_site_fit_verified}}."),
+    ("next_steps", "Verify site dimensions and current availability for {{c0.listing_id}} and {{c1.listing_id}}.",
+     ["c0.listing_id", "c1.listing_id"], "WRONG_FACT_DOMAIN", "c0.uncertainty.0", "Limitation: {{c0.uncertainty.0}}."),
+    ("reason", "The property at {{c0.listing_id}} is {{c0.eligibility}} as the total project cost of {{c0.budget.total_project.expected_lkr}} is potentially feasible, though high-end estimates may exceed the budget.",
+     ["c0.listing_id", "c0.eligibility", "c0.budget.total_project.expected_lkr"], "FEASIBILITY_CLAIM", "c0.budget.total_project.expected_lkr", "Preliminary project estimate: {{c0.budget.total_project.expected_lkr}}."),
+    ("strength", "Location matches Kottawa.", ["c0.strengths.3"],
+     "UNBOUND_FACTUAL_CLAIM", "c0.known_property_facts.location", "Recorded location: {{c0.known_property_facts.location}}."),
+]
+
+
+def set_prose(payload, section, text):
+    if section == "reason":
+        payload["properties"][0]["reason"] = text
+    elif section == "strength":
+        payload["properties"][0]["strengths"] = [text]
+    else:
+        payload[section] = [text]
+
+
+@pytest.mark.parametrize("section,text,refs,code,good_ref,good_text", LIVE_LAND_HOUSE_PROSE_FAILURES)
+def test_live_land_house_prose_rejected_and_neutral_correction_passes(section, text, refs, code, good_ref, good_text):
+    ctx = rich_land_house_context()
+    decision = RecommendationAgent().recommend(ctx)
+    before = decision.model_dump()
+    package = build_evidence(ctx, decision)
+    wire = json.loads(package.json_text)
+    assert len(package.json_text.encode()) <= 64000
+    assert len(wire["items"]) == 4
+    bad = valid_payload(wire)
+    set_prose(bad, section, {"text": text, "evidence_refs": refs})
+    with pytest.raises(GuardrailError, match="^" + code + "$"):
+        validate_draft(ExplanationDraft.model_validate(bad), package)
+    good = valid_payload(wire)
+    set_prose(good, section, statement(good_ref, good_text))
+    validate_draft(ExplanationDraft.model_validate(good), package)
+    fake = FakeProvider(responses=[json.dumps(bad), json.dumps(good)])
+    result = ExplanationService(fake).explain(ctx, decision)
+    assert result.explanation_status == "LLM"
+    assert result.explanation.attempts == 2
+    assert result.explanation.fallback_reason is None
+    assert fake.calls[1][0] == synthesis_prompt(code)
+    assert text not in fake.calls[1][0] + fake.calls[1][1]
+    assert fake.calls[0][1] == fake.calls[1][1]
+    assert decision.model_dump() == before
+
+
+def test_comparative_prose_remains_rejected_despite_valid_comparison_citation():
+    # Synthetic regression, not a claim that this exact text was observed live.
+    ctx = rich_land_house_context()
+    package = build_evidence(ctx, RecommendationAgent().recommend(ctx))
+    ref = "comparison.0.expected_cost_difference_lkr"
+    bad = valid_payload(json.loads(package.json_text))
+    rejected = "The first option is cheaper: {{" + ref + "}}."
+    bad["comparison_summary"] = [statement(ref, rejected)]
+    with pytest.raises(GuardrailError, match="^UNSAFE_OR_UNSUPPORTED_CLAIM$"):
+        validate_draft(ExplanationDraft.model_validate(bad), package)
+    good = valid_payload(json.loads(package.json_text))
+    good["comparison_summary"] = [statement(ref, "Recorded comparison: {{" + ref + "}}.")]
+    fake = FakeProvider(responses=[json.dumps(bad), json.dumps(good)])
+    result = explain(ctx, fake)
+    assert result.explanation_status == "LLM"
+    assert result.explanation.attempts == 2
+    assert fake.calls[1][0] == synthesis_prompt("UNSAFE_OR_UNSUPPORTED_CLAIM")
+    assert rejected not in fake.calls[1][0] + fake.calls[1][1]
+
+
+def test_land_house_prompt_limits_prose_without_omitting_candidates():
+    assert "Preserve ALL items and exact decision echoes" in SYSTEM_PROMPT
+    assert "Do not add clauses" in SYSTEM_PROMPT
+    assert "Do not paraphrase a value as" in SYSTEM_PROMPT
+    assert "listing_id identifies a candidate" in SYSTEM_PROMPT
+    assert "Do not add availability, approval or professional-verification disclaimers" in SYSTEM_PROMPT
+    assert "Dimensions require width_ft, length_ft or exact_site_fit_verified" in synthesis_prompt("WRONG_FACT_DOMAIN")
+    assert "Never replay or paraphrase the rejected statement" in synthesis_prompt("UNSAFE_OR_UNSUPPORTED_CLAIM")
