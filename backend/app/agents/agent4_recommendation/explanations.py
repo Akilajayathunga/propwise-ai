@@ -139,8 +139,10 @@ class ExplanationService:
                         repair_code = reason
             if attachment is None:
                 attachment = deterministic_fallback(result, reason, attempts)
-        except EvidenceError:
-            attachment = deterministic_fallback(result, "EVIDENCE_UNAVAILABLE_OR_TOO_LARGE", attempts)
+        except EvidenceError as exc:
+            safe_codes = {"EVIDENCE_TOO_LARGE", "TEXT_TOO_LARGE", "CONTEXT_ID_MISMATCH"}
+            code = str(exc) if str(exc) in safe_codes else "EVIDENCE_UNAVAILABLE_OR_TOO_LARGE"
+            attachment = deterministic_fallback(result, code, attempts)
         except ProviderError as exc:
             safe_codes = {"NOT_CONFIGURED", "PROVIDER_TIMEOUT", "PROVIDER_RESPONSE_TOO_LARGE",
                           "PROVIDER_HTTP_ERROR", "PROVIDER_INCOMPLETE", "PROVIDER_UNEXPECTED_OUTPUT",

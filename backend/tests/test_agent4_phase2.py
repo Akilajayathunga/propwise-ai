@@ -49,8 +49,8 @@ def valid_payload(data):
             "budget_status": item["budget"]["status"],
             "planning_constraints_satisfied": item["planning"]["constraints_satisfied"] if item["planning"] else None,
             "reason": statement(alias + ".eligibility"),
-            "strengths": [statement(alias + ".strengths.0")] if item["strengths"] else [],
-            "trade_offs": [statement(alias + ".uncertainty.0")] if item["uncertainty"] else [],
+            "strengths": [statement(alias + ".strengths.0")] if alias + ".strengths.0" in data["facts"] else [],
+            "trade_offs": [statement(alias + ".uncertainty.0")] if alias + ".uncertainty.0" in data["facts"] else [],
         })
     return {"recommendation_order": data["recommendation_order"],
         "summary": statement("decision.status", "The supplied assessment remains {{decision.status}}."),
@@ -323,7 +323,10 @@ def test_candidate_subset_and_payload_size_are_bounded():
 def test_oversized_evidence_falls_back_without_calling_provider():
     ctx = context(property_result(), req=requirements(preferences=["x" * 70_000]))
     fake = FakeProvider()
-    assert_fallback(explain(ctx, fake))
+    result = explain(ctx, fake)
+    assert_fallback(result)
+    assert result.explanation.fallback_reason == "TEXT_TOO_LARGE"
+    assert result.explanation.attempts == 0
     assert not fake.calls
 
 
@@ -333,6 +336,8 @@ def test_context_candidate_mismatch_falls_back():
     fake = FakeProvider()
     result = ExplanationService(fake).explain(ctx, foreign)
     assert_fallback(result)
+    assert result.explanation.fallback_reason == "CONTEXT_ID_MISMATCH"
+    assert result.explanation.attempts == 0
     assert not fake.calls
 
 
@@ -852,3 +857,109 @@ def test_rendered_explanation_keeps_refs_separate_from_prose():
     for internal in ("c0.", "decision.status", "known_property_facts", "HARD_CONSTRAINT_VIOLATION"):
         assert internal not in prose
     assert result.alternatives[0].eligibility == "HARD_CONSTRAINT_VIOLATION"
+
+
+@pytest.mark.parametrize("code,expected", [
+    ("EVIDENCE_TOO_LARGE", "EVIDENCE_TOO_LARGE"),
+    ("TEXT_TOO_LARGE", "TEXT_TOO_LARGE"),
+    ("CONTEXT_ID_MISMATCH", "CONTEXT_ID_MISMATCH"),
+    ("private secret /path/provider", "EVIDENCE_UNAVAILABLE_OR_TOO_LARGE"),
+])
+def test_evidence_error_codes_are_strictly_allowlisted(monkeypatch, code, expected):
+    from app.agents.agent4_recommendation import explanations
+    def fail(*args):
+        raise EvidenceError(code)
+    monkeypatch.setattr(explanations, "build_evidence", fail)
+    fake = FakeProvider()
+    result = explain(context(property_result()), fake)
+    assert_fallback(result)
+    assert result.explanation.fallback_reason == expected
+    assert result.explanation.attempts == 0
+    assert not fake.calls
+    assert "private secret" not in result.model_dump_json()
+
+
+def rich_land_house_context(warning_count=6):
+    props = [land("kottawa-" + str(i), location="Kottawa", district="Colombo",
+                  sale_total_price_lkr=price) for i, price in enumerate([10000000, 11500000, 30000000, 32000000])]
+    options = []
+    for prop in props:
+        plan = option(prop, low=20000000, expected=25000000, high=32000000,
+                      status="POTENTIALLY_FEASIBLE")
+        plan.house.update(bedrooms=3, bathrooms=2, floors=2)
+        plan.budget["total_project_budget_lkr"] = 40000000
+        plan.budget["expected_margin_lkr"] = 40000000 - prop.sale_total_price_lkr - 25000000
+        plan.assumptions = ["Standard finishes assumed.", "Conceptual floor area based on requested rooms."]
+        # Realistic detailed planning caveats repeated across upstream sections.
+        plan.warnings = [
+            "Exact site dimensions are unavailable; professional site inspection and design review are required. "
+            "The conceptual planning envelope does not establish the actual land shape or legal setbacks. "
+            + "Review item " + str(i) for i in range(warning_count)]
+        plan.budget["not_included"] = ["Professional fees", "Approvals", "Utility connections", "Transfer costs", "Furniture", "Landscaping"]
+        options.append(plan)
+    req = land_req(location="Kottawa", total_project_budget_lkr=40000000,
+                   bedrooms=3, bathrooms=2, floors=2)
+    return context(*props, req=req, planning=combined(*options))
+
+
+def test_land_house_compaction_is_lossless_bounded_and_preserves_owners():
+    ctx = rich_land_house_context()
+    decision = RecommendationAgent().recommend(ctx)
+    before = decision.model_dump()
+    expanded = build_evidence(ctx, decision, max_bytes=2000000)
+    assert len(expanded.json_text.encode()) > 64000
+    compact = build_evidence(ctx, decision)
+    wire = json.loads(compact.json_text)
+    assert len(compact.json_text.encode()) <= 64000
+    assert len(compact.data["items"]) == 4
+    assert len(decision.recommendations) >= 2
+    assert compact.data == expanded.data
+    assert compact.facts == expanded.facts
+    assert wire["facts"] == {ref: fact["value"] for ref, fact in expanded.facts.items()}
+    assert [wire["facts"][ref] for ref in wire["required_notice_refs"]] == expanded.data["required_notices"]
+    for i, item in enumerate(compact.data["items"]):
+        for suffix in ("eligibility", "budget.price_lkr", "budget.construction.expected_lkr",
+                       "budget.total_project.high_lkr", "planning.constraints_satisfied",
+                       "planning.exact_site_fit_verified", "known_property_facts.location"):
+            fact = compact.facts[f"c{i}." + suffix]
+            assert fact["owners"] == [item["listing_id"]]
+        assert wire["items"][i]["listing_id"] == item["listing_id"]
+    assert CONSTRUCTION_NOTICE in compact.data["required_notices"]
+    result = ExplanationService(FakeProvider()).explain(ctx, decision)
+    assert result.explanation_status == "LLM"
+    assert decision.model_dump() == before
+
+
+def test_small_evidence_wire_remains_unchanged():
+    ctx = kandy_no_shortlist_context()
+    package = build_evidence(ctx, RecommendationAgent().recommend(ctx))
+    assert json.loads(package.json_text) == package.data
+
+
+def test_uncompressible_evidence_still_fails_before_provider_call():
+    ctx = context(property_result(), req=requirements(preferences=[str(i) + "x" * 9000 for i in range(20)]))
+    provider = FakeProvider()
+    result = explain(ctx, provider)
+    assert result.explanation.fallback_reason == "EVIDENCE_TOO_LARGE"
+    assert result.explanation.attempts == 0
+    assert not provider.calls
+
+
+
+def test_large_land_house_caveats_still_fail_safely_without_truncation():
+    provider = FakeProvider()
+    result = explain(rich_land_house_context(warning_count=12), provider)
+    assert result.explanation.fallback_reason == "EVIDENCE_TOO_LARGE"
+    assert result.explanation.attempts == 0
+    assert not provider.calls
+
+
+
+def test_compacted_evidence_still_rejects_cross_candidate_references():
+    def mutate(payload):
+        payload["properties"][0]["reason"] = statement("c1.budget.price_lkr", "Recorded price: {{c1.budget.price_lkr}}.")
+    provider = FakeProvider(mutate)
+    result = explain(rich_land_house_context(), provider)
+    assert "required_notice_refs" in json.loads(provider.calls[0][1])
+    assert_fallback(result)
+    assert result.explanation.fallback_reason == "CROSS_CANDIDATE_EVIDENCE"
