@@ -104,6 +104,18 @@
     const features = Array.isArray(raw.features) ? raw.features : String(raw.features || "").split(",").map(x => x.trim()).filter(Boolean);
     return { property: { ...raw, features, agent2_score: raw.score, full_ad: raw } };
   }
+  function unmetLabel(value) {
+    const text = String(value);
+    const location = /^(location|district) matches (.+)$/i.exec(text);
+    if (location) return `Does not match the requested ${location[1].toLowerCase()}: ${location[2]}`;
+    const rooms = /^(bedrooms|bathrooms|floors|parking_spaces) (at least|equals) (.+)$/i.exec(text);
+    if (rooms) {
+      const names = { bedrooms: "bedroom", bathrooms: "bathroom", floors: "floor", parking_spaces: "parking-space" };
+      return `Does not meet the requested ${names[rooms[1].toLowerCase()]} requirement: ${rooms[2]} ${rooms[3]}`;
+    }
+    if (text === "Expected cost fits original budget") return "Expected cost exceeds the original budget";
+    return text;
+  }
   function recommendationCard(item, raw, option, explanation, recommended) {
     const card = el("article", null, "a4-card");
     card.appendChild(el("p", recommended ? `Final rank ${item.rank}` : "Alternative / outside shortlist", "eyebrow"));
@@ -117,8 +129,8 @@
     }
     budget(card, item.budget);
     list(card, "Strengths", item.strengths);
-    list(card, "Trade-offs", item.trade_offs);
-    list(card, "Unmet requirements", item.unmet_requirements);
+    list(card, "Trade-offs", (item.trade_offs || []).map(value => (item.unmet_requirements || []).includes(value) ? unmetLabel(value) : value));
+    list(card, "Unmet requirements", (item.unmet_requirements || []).map(unmetLabel));
     list(card, "Uncertainty", item.uncertainty);
     details(card, "Warnings", excluding(item.warnings, planningNotes(item.planning).all));
     planning(card, item.planning);
@@ -218,7 +230,7 @@
       root.appendChild(el("p", `Assessment: ${label(owned.eligibility)}. No property ranking was performed.`));
       budget(root, owned.budget);
       planning(root, owned.planning);
-      list(root, "Unmet requirements", owned.unmet_requirements);
+      list(root, "Unmet requirements", (owned.unmet_requirements || []).map(unmetLabel));
       list(root, "Uncertainty", owned.uncertainty);
       list(root, "Limitations", excluding(owned.limitations, [...planningNotes(owned.planning).all, ...generalWarnings]));
       list(root, "Suggested next steps", owned.next_steps);

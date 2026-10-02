@@ -67,6 +67,28 @@ def parse_draft(raw: str) -> ExplanationDraft:
         raise GuardrailError("INVALID_JSON_OR_SCHEMA") from None
 
 
+def _check_listing_references(text: str, allowed_ids: list[str]) -> None:
+    """Reject raw identities, not arbitrary words following listing/property.
+
+    Placeholder barriers prevent an ID label from consuming the word after a
+    grounded placeholder. Known IDs remain forbidden anywhere in free prose.
+    Unknown references require explicit ID syntax or an identifier-shaped token;
+    ordinary noun phrases are still subject to all other grounding checks.
+    """
+    plain = unicodedata.normalize("NFKC", PLACEHOLDER.sub("\x00", text))
+    for listing_id in allowed_ids:
+        value = unicodedata.normalize("NFKC", str(listing_id))
+        if value and re.search(r"(?<![\w-])" + re.escape(value) + r"(?![\w-])", plain, re.I):
+            raise GuardrailError("UNBOUND_LISTING_REFERENCE")
+    explicit = r"\b(?:listing|property)\s+(?:id(?:entifier)?\b\s*[:=#]?\s*|[#\"'])\s*[\"']?[\w-]+"
+    if re.search(explicit, plain, re.I):
+        raise GuardrailError("UNBOUND_LISTING_REFERENCE")
+    for match in re.finditer(r"\b(?:listing|property)\s+([\w-]+)", plain, re.I):
+        token = match.group(1)
+        if re.search(r"[\d_-]", token) or (token != "ID" and re.fullmatch(r"[A-Z]{2,}", token)):
+            raise GuardrailError("UNBOUND_LISTING_REFERENCE")
+
+
 def _check_text(statement: GroundedText, package: EvidencePackage, *,
                 listing_id: str | None = None, section: str = "general") -> None:
     refs = statement.evidence_refs
@@ -107,10 +129,7 @@ def _check_text(statement: GroundedText, package: EvidencePackage, *,
     for pattern, domains in FACT_DOMAINS.items():
         if re.search(pattern, plain, re.I) and not any(any(domain in ref for domain in domains) for ref in placeholders):
             raise GuardrailError("WRONG_FACT_DOMAIN")
-    for match in re.finditer(r"\b(?:listing|property)\s+(?:id\s*[:#]?\s*)?[#\"']?([\w-]+)", plain, re.I):
-        if match.group(1).lower() not in {"is", "has", "remains", "evidence", "assessment", "meets", "can", "does",
-                                         "should", "with", "availability", "claims", "facts", "information"}:
-            raise GuardrailError("UNBOUND_LISTING_REFERENCE")
+    _check_listing_references(statement.text, package.data["allowed_listing_ids"])
     # Suitability is supplied in deterministic labels, never asserted by the LLM.
     # Conservative by design: even an apparently positive eligible claim must cite
     # the exact label via placeholder rather than paraphrase it as a guarantee.
@@ -157,7 +176,19 @@ def render_text(statement: GroundedText, package: EvidencePackage) -> str:
             value = "unknown"
         elif type(value) is bool:
             value = "true" if value else "false"
-        label = ref.replace("_", " ")
-        # Label travels with value, retaining units/field meaning in prose.
-        return f"[{label}: {value}]"
+        field = ref.rsplit(".", 1)[-1]
+        if isinstance(value, str) and field in {"status", "eligibility", "evidence_status", "budget_status", "basis"}:
+            value = {"OK": "recommendations ready", "HARD_CONSTRAINT_VIOLATION": "hard-constraint violation"}.get(
+                value, value.replace("_", " ").lower())
+        # Keep units meaningful without exposing the internal reference path.
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            if field.endswith("_lkr"):
+                return f"LKR {value:,.2f}".removesuffix(".00")
+            if field.endswith("_sqft"):
+                return f"{value:g} sq ft"
+            if field.endswith("_ft"):
+                return f"{value:g} ft"
+            if field.endswith("_perches"):
+                return f"{value:g} perches"
+        return str(value)
     return PLACEHOLDER.sub(substitute, statement.text)

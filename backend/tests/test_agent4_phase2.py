@@ -1,10 +1,11 @@
 """No live network: fake providers and HTTPX MockTransport only."""
 import json
 from types import SimpleNamespace
+from copy import deepcopy
 
 import httpx
 import pytest
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from app.agents.agent4_recommendation.agent import RecommendationAgent
 from app.agents.agent4_recommendation.evidence import (
@@ -12,9 +13,9 @@ from app.agents.agent4_recommendation.evidence import (
 )
 from app.agents.agent4_recommendation.explanation_models import ExplanationDraft
 from app.agents.agent4_recommendation.explanations import ExplanationService
-from app.agents.agent4_recommendation.guardrails import GuardrailError, parse_draft, validate_draft
-from app.agents.agent4_recommendation.llm_client import HTTPExplanationProvider, ProviderConfig, ProviderError
-from app.agents.agent4_recommendation.prompts import PROMPT_VERSION, SYSTEM_PROMPT
+from app.agents.agent4_recommendation.guardrails import GuardrailError, parse_draft, validate_draft, _check_listing_references, render_text
+from app.agents.agent4_recommendation.llm_client import HTTPExplanationProvider, ProviderConfig, ProviderError, ProviderHTTPError, normalize_gemini_schema
+from app.agents.agent4_recommendation.prompts import PROMPT_VERSION, SYSTEM_PROMPT, synthesis_prompt
 from app.schemas.recommendation import RecommendationContext, RecommendationResponse
 
 # Reuse existing fixtures without editing any Phase 1 tests.
@@ -207,7 +208,7 @@ def test_numeric_evidence_is_rendered_from_authoritative_field():
         data["properties"][0]["reason"] = statement("c0.budget.price_lkr", "Price evidence: {{c0.budget.price_lkr}}.")
     result = explain(context(property_result(sale_total_price_lkr=80)), FakeProvider(mutate))
     assert result.explanation_status == "LLM"
-    assert "price lkr: 80.0" in result.explanation.properties[0].reason
+    assert result.explanation.properties[0].reason == "Price evidence: LKR 80."
 
 
 def test_incorrect_budget_construction_number_rejected():
@@ -389,12 +390,15 @@ def test_provider_request_shape_and_no_tool_access(provider):
     if provider == "openai":
         assert request.headers["authorization"] == "Bearer test-only-key"
         assert body["text"]["format"]["strict"] is True
+        assert body["text"]["format"]["schema"] == ExplanationDraft.model_json_schema()
         assert body["max_output_tokens"] == 4000
         assert body["store"] is False
     else:
         assert request.headers["x-goog-api-key"] == "test-only-key"
         assert body["generationConfig"]["maxOutputTokens"] == 4000
-        assert body["generationConfig"]["responseMimeType"] == "application/json"
+        assert body["generationConfig"]["responseFormat"]["text"] == {
+            "mimeType": "APPLICATION_JSON", "schema": normalize_gemini_schema(ExplanationDraft.model_json_schema())}
+        assert "candidateCount" not in body["generationConfig"]
     assert request.extensions["timeout"]["read"] == 20
 
 
@@ -461,3 +465,390 @@ def test_untrusted_instruction_in_citable_field_is_rejected():
     def mutate(data):
         data["properties"][0]["reason"] = statement("c0.known_property_facts.location")
     assert_fallback(explain(ctx, FakeProvider(mutate)))
+
+
+def test_gemini_38_structured_output_passes_full_validation():
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        assert request.url.path.endswith("/gemini-3.8-flash:generateContent")
+        assert not request.url.query
+        assert request.headers["x-goog-api-key"] == "test-only-key"
+        body = json.loads(request.content)
+        assert body["generationConfig"] == {
+            "responseFormat": {"text": {
+                "mimeType": "APPLICATION_JSON", "schema": normalize_gemini_schema(ExplanationDraft.model_json_schema())}},
+            "maxOutputTokens": 4000,
+        }
+        data = json.loads(body["contents"][0]["parts"][0]["text"])
+        return httpx.Response(200, json={"candidates": [{"finishReason": "STOP",
+            "content": {"parts": [{"text": json.dumps(valid_payload(data))}]}}]})
+
+    adapter = HTTPExplanationProvider(
+        ProviderConfig(provider="gemini", model="gemini-3.8-flash", api_key=SecretStr("test-only-key")),
+        transport=httpx.MockTransport(handle))
+    result = explain(context(property_result()), adapter)
+    assert result.explanation_status == "LLM"
+    assert result.explanation.attempts == 1
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("status,category", [
+    (400, "INVALID_REQUEST"), (401, "AUTHENTICATION"), (403, "PERMISSION"),
+    (429, "RATE_LIMIT"), (500, "PROVIDER_FAILURE"), (503, "PROVIDER_FAILURE"),
+    (302, "OTHER_HTTP_ERROR"), (404, "OTHER_HTTP_ERROR"),
+])
+def test_gemini_http_status_diagnostics_and_safe_fallback(status, category, caplog):
+    calls = []
+
+    class UnreadBody(httpx.SyncByteStream):
+        def __iter__(self):
+            raise AssertionError("Error response bodies must not be read")
+
+    def handle(request):
+        calls.append(request)
+        return httpx.Response(status, stream=UnreadBody(),
+            headers={"location": "https://example.invalid/private-response-secret"})
+
+    adapter = HTTPExplanationProvider(
+        ProviderConfig(provider="gemini", model="gemini-3.8-flash", api_key=SecretStr("test-only-key")),
+        transport=httpx.MockTransport(handle))
+    with pytest.raises(ProviderHTTPError) as caught:
+        adapter.synthesize("private-prompt", "private-evidence", {})
+    assert caught.value.status_code == status
+    assert caught.value.category == category
+    assert str(caught.value) == "PROVIDER_HTTP_ERROR"
+    assert vars(caught.value) == {"status_code": status, "category": category}
+    assert len(calls) == 1  # Includes redirects: none are followed.
+    calls.clear()
+    result = explain(context(property_result()), adapter)
+    assert_fallback(result)
+    assert result.explanation.fallback_reason == "PROVIDER_HTTP_ERROR"
+    assert result.explanation.attempts == 1
+    assert len(calls) == 1
+    for secret in ("test-only-key", "private-prompt", "private-evidence", "private-response-secret"):
+        assert secret not in result.model_dump_json() + repr(caught.value) + caplog.text
+
+
+
+def test_gemini_schema_preserves_structure_and_original_constraints():
+    raw = ExplanationDraft.model_json_schema()
+    before = deepcopy(raw)
+    expected = deepcopy(raw)
+    for definition, field, limit in [("GroundedText", "text", 1200),
+                                      ("PropertyExplanation", "listing_id", 200)]:
+        node = expected["$defs"][definition]["properties"][field]
+        assert node.pop("minLength") == 1
+        assert node.pop("maxLength") == limit
+    assert expected["properties"]["properties"].pop("maxItems") == 7
+    assert expected["properties"]["comparison_summary"].pop("maxItems") == 4
+    wire = normalize_gemini_schema(raw)
+    assert wire == expected  # Four string limits and exactly two root array limits removed.
+    assert raw == before
+    assert wire is not raw
+
+    def check_refs(node):
+        if isinstance(node, dict):
+            if "$ref" in node:
+                target = wire
+                for part in node["$ref"].removeprefix("#/").split("/"):
+                    target = target[part]
+                assert isinstance(target, dict)
+            for child in node.values():
+                check_refs(child)
+        elif isinstance(node, list):
+            for child in node:
+                check_refs(child)
+    check_refs(wire)
+
+
+def test_gemini_normalization_preserves_keyword_named_properties_and_supported_constraints():
+    raw = {"type": "object", "properties": {
+        "minLength": {"type": "string", "minLength": 1, "maxLength": 10},
+        "maxLength": {"type": "array", "minItems": 1, "maxItems": 2,
+                      "prefixItems": [{"type": "string", "minLength": 1}],
+                      "items": {"type": "number", "minimum": 0, "maximum": 10}},
+    }, "required": ["minLength"], "additionalProperties": False,
+        "title": "minLength", "description": "maxLength",
+        "$defs": {"minLength": {"anyOf": [{"type": "null"},
+            {"type": "string", "enum": ["minLength"], "maxLength": 10}]}},
+        "oneOf": [{"$ref": "#/$defs/minLength"}]}
+    expected = deepcopy(raw)
+    del expected["properties"]["minLength"]["minLength"]
+    del expected["properties"]["minLength"]["maxLength"]
+    del expected["properties"]["maxLength"]["prefixItems"][0]["minLength"]
+    del expected["$defs"]["minLength"]["anyOf"][1]["maxLength"]
+    assert normalize_gemini_schema(raw) == expected
+
+
+@pytest.mark.parametrize("field,value", [("text", ""), ("text", "x" * 1201),
+                                         ("listing_id", ""), ("listing_id", "x" * 201)])
+def test_gemini_response_still_enforces_local_string_lengths(field, value):
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        body = json.loads(request.content)
+        data = json.loads(body["contents"][0]["parts"][0]["text"])
+        payload = valid_payload(data)
+        if field == "text":
+            payload["summary"]["text"] = value
+        else:
+            payload["properties"][0]["listing_id"] = value
+        with pytest.raises(ValidationError) as caught:
+            ExplanationDraft.model_validate(payload)
+        assert any(error["type"] in {"string_too_short", "string_too_long"}
+                   for error in caught.value.errors())
+        return httpx.Response(200, json={"candidates": [{"finishReason": "STOP",
+            "content": {"parts": [{"text": json.dumps(payload)}]}}]})
+
+    adapter = HTTPExplanationProvider(
+        ProviderConfig(provider="gemini", model="gemini-3.8-flash", api_key=SecretStr("test-only-key")),
+        transport=httpx.MockTransport(handle))
+    result = explain(context(property_result()), adapter)
+    assert_fallback(result)
+    assert result.explanation.attempts == 2
+    assert len(calls) == 2
+
+
+
+def test_gemini_complexity_workaround_is_scoped_to_explanation_contract():
+    raw = ExplanationDraft.model_json_schema()
+    raw["title"] = "OtherContract"
+    wire = normalize_gemini_schema(raw)
+    assert wire["properties"]["properties"]["maxItems"] == 7
+    assert wire["properties"]["comparison_summary"]["maxItems"] == 4
+
+
+@pytest.mark.parametrize("field,limit", [("properties", 7), ("comparison_summary", 4)])
+def test_gemini_response_still_enforces_omitted_array_bounds(field, limit):
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        body = json.loads(request.content)
+        wire = body["generationConfig"]["responseFormat"]["text"]["schema"]
+        assert "maxItems" not in wire["properties"][field]
+        assert wire["properties"]["warnings"]["maxItems"] == 5
+        assert wire["$defs"]["GroundedText"]["properties"]["evidence_refs"]["maxItems"] == 12
+        data = json.loads(body["contents"][0]["parts"][0]["text"])
+        payload = valid_payload(data)
+        item = payload["properties"][0] if field == "properties" else statement("coverage.scope")
+        payload[field] = [deepcopy(item) for _ in range(limit + 1)]
+        with pytest.raises(ValidationError) as caught:
+            ExplanationDraft.model_validate(payload)
+        assert any(error["type"] == "too_long" and error["loc"] == (field,)
+                   for error in caught.value.errors())
+        return httpx.Response(200, json={"candidates": [{"finishReason": "STOP",
+            "content": {"parts": [{"text": json.dumps(payload)}]}}]})
+
+    adapter = HTTPExplanationProvider(
+        ProviderConfig(provider="gemini", model="gemini-3.8-flash", api_key=SecretStr("test-only-key")),
+        transport=httpx.MockTransport(handle))
+    result = explain(context(property_result()), adapter)
+    assert_fallback(result)
+    assert result.explanation.attempts == 2
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("text", [
+    "Property type is recorded.", "Listing type is recorded.",
+    "Property details remain limited.", "Property information remains limited.",
+    "Listing information remains limited.", "Property evidence remains limited.",
+    "Listing availability is not verified.", "Review property ownership.",
+    "The property at {{c0.known_property_facts.location}} needs review.",
+    "Listing ID {{c0.listing_id}} needs review.",
+])
+def test_listing_reference_check_accepts_ordinary_phrases_and_placeholder_barriers(text):
+    _check_listing_references(text, ["known-home"])
+
+
+@pytest.mark.parametrize("ref,text", [
+    ("c0.known_property_facts.property_type", "Property type is {{c0.known_property_facts.property_type}}."),
+    ("c0.known_property_facts.listing_type", "Listing type is {{c0.known_property_facts.listing_type}}."),
+    ("coverage.scope", "Property information remains limited."),
+    ("coverage.scope", "Review property ownership."),
+    ("c0.known_property_facts.location", "The property at {{c0.known_property_facts.location}} needs review."),
+    ("c0.listing_id", "Listing ID {{c0.listing_id}} needs review."),
+])
+def test_ordinary_property_phrases_pass_complete_grounded_validation(ref, text):
+    def mutate(data):
+        data["properties"][0]["reason"] = statement(ref, text)
+    assert explain(context(property_result("known-home")), FakeProvider(mutate)).explanation_status == "LLM"
+
+
+@pytest.mark.parametrize("text", [
+    "Review known-home.", "Review alpha.", "Property house-for-sale-example-123 is recorded.",
+    "Listing ID house-for-sale-example-123 needs review.", "Property id invented needs review.",
+    "Listing identifier invented needs review.", "Property invented-home needs review.",
+    "Listing ABCDEF needs review.", 'Listing "invented" needs review.',
+    "Property #invented needs review.", "Listing known-home needs review.",
+])
+def test_structural_listing_reference_check_rejects_raw_identifiers(text):
+    with pytest.raises(GuardrailError, match="UNBOUND_LISTING_REFERENCE"):
+        _check_listing_references(text, ["known-home", "alpha"])
+
+
+@pytest.mark.parametrize("text", [
+    "Review known-home.", "Review other-home.", "Listing id invented needs review.",
+    "Property house-for-sale-example-123 is recorded.",
+])
+def test_raw_candidate_references_still_fall_back(text):
+    def mutate(data):
+        data["properties"][0]["reason"] = statement("c0.eligibility", text)
+    assert_fallback(explain(context(property_result("known-home"),property_result("other-home")), FakeProvider(mutate)))
+
+
+def test_cross_candidate_listing_placeholder_still_rejected():
+    def mutate(data):
+        data["properties"][0]["reason"] = statement("c1.listing_id", "Listing {{c1.listing_id}} needs review.")
+    result=explain(context(property_result("known-home"),property_result("other-home")), FakeProvider(mutate))
+    assert_fallback(result)
+    assert result.explanation.fallback_reason == "CROSS_CANDIDATE_EVIDENCE"
+
+
+def test_negative_verification_phrase_still_requires_grounded_warning():
+    def mutate(data):
+        data["properties"][0]["reason"] = statement("coverage.scope", "Listing availability is not verified.")
+    result=explain(context(property_result("known-home")), FakeProvider(mutate))
+    assert_fallback(result)
+    assert result.explanation.fallback_reason == "FEASIBILITY_CLAIM"
+
+
+@pytest.mark.parametrize("code,fragment", [
+    ("UNBOUND_LISTING_REFERENCE", "Do not write literal listing/property IDs in prose."),
+    ("UNBOUND_NUMERIC_CLAIM", "Do not write digits or number words in prose"),
+    ("FEASIBILITY_CLAIM", "Do not assert or negate suitability"),
+    ("WRONG_FACT_DOMAIN", "Match each factual word to its exact field"),
+    ("UNSAFE_OR_UNSUPPORTED_CLAIM", "Omit free-prose approval"),
+])
+def test_fixed_repair_hints_for_observed_live_failures(code, fragment):
+    assert fragment in synthesis_prompt(code)
+    assert synthesis_prompt(code).startswith(SYSTEM_PROMPT)
+
+
+@pytest.mark.parametrize("label", ["Summary", "Reason", "Price"])
+def test_prompt_grounding_examples_pass_original_validation(label):
+    example = next(line for line in SYSTEM_PROMPT.splitlines() if line.startswith(label + ": {"))
+    grounded = json.loads(example.split(": ", 1)[1])
+    def mutate(data):
+        data["summary"] = grounded
+    assert explain(context(property_result("known-home")), FakeProvider(mutate)).explanation_status == "LLM"
+
+
+KANDY_ALTERNATIVE_ID = "house-for-sale-menikhinna-for-sale-kandy-2"
+
+
+def kandy_no_shortlist_context():
+    # The real search accepts district Kandy; final location checks reject
+    # Menikhinna as the requested location. No dataset or live provider needed.
+    return context(property_result(KANDY_ALTERNATIVE_ID, location="Menikhinna", district="Kandy",
+                                   sale_total_price_lkr=25000000),
+                   req=requirements(maximum_budget_lkr=30000000,
+                       original_query="I want to buy a 3 bedroom house in Kandy under 30 million LKR"))
+
+
+def test_no_shortlist_explanation_still_covers_exact_alternative_identity():
+    ctx = kandy_no_shortlist_context()
+    decision = RecommendationAgent().recommend(ctx)
+    assert decision.status == "NO_SUITABLE_OPTION"
+    assert decision.recommendations == []
+    assert [item.listing_id for item in decision.alternatives] == [KANDY_ALTERNATIVE_ID]
+    assert decision.alternatives[0].eligibility == "HARD_CONSTRAINT_VIOLATION"
+    package = build_evidence(ctx, decision)
+    assert package.data["recommendation_order"] == []
+    assert [item["listing_id"] for item in package.data["items"]] == [KANDY_ALTERNATIVE_ID]
+    assert package.data["items"][0]["role"] == "alternative"
+    payload = valid_payload(package.data)
+    assert payload["recommendation_order"] == []
+    assert payload["top_recommendation_reason"] is None
+    assert payload["properties"][0]["listing_id"] == KANDY_ALTERNATIVE_ID
+    validate_draft(ExplanationDraft.model_validate(payload), package)
+    before = decision.model_dump()
+    result = ExplanationService(FakeProvider()).explain(ctx, decision)
+    assert result.explanation_status == "LLM"
+    assert result.status == "NO_SUITABLE_OPTION"
+    assert result.recommendations == []
+    assert result.explanation.explained_listing_ids == [KANDY_ALTERNATIVE_ID]
+    assert result.explanation.top_recommendation_reason is None
+    assert decision.model_dump() == before
+
+
+@pytest.mark.parametrize("mode", ["omitted", "changed", "placeholder", "prose_only"])
+def test_alternative_identity_omission_or_substitution_still_fails(mode):
+    def mutate(payload):
+        if mode in {"omitted", "prose_only"}:
+            payload["properties"] = []
+            if mode == "prose_only":
+                payload["alternatives"] = [statement("c0.listing_id", "Recorded alternative: {{c0.listing_id}}.")]
+        else:
+            payload["properties"][0]["listing_id"] = "invented" if mode == "changed" else "{{c0.listing_id}}"
+    result = explain(kandy_no_shortlist_context(), FakeProvider(mutate))
+    assert_fallback(result)
+    assert result.explanation.fallback_reason == "UNKNOWN_ID_OR_PROPERTY_ORDER"
+    assert result.explanation.attempts == 2
+
+
+def test_identity_repair_is_fixed_and_does_not_replay_rejected_output():
+    ctx = kandy_no_shortlist_context()
+    package = build_evidence(ctx, RecommendationAgent().recommend(ctx))
+    bad = valid_payload(package.data)
+    bad["properties"][0]["listing_id"] = "rejected-provider-text-do-not-replay"
+    fake = FakeProvider(responses=[json.dumps(bad), None])
+    result = explain(ctx, fake)
+    assert result.explanation_status == "LLM"
+    assert result.explanation.attempts == 2
+    assert result.explanation.explained_listing_ids == [KANDY_ALTERNATIVE_ID]
+    prompt, evidence, _ = fake.calls[1]
+    assert prompt == synthesis_prompt("UNKNOWN_ID_OR_PROPERTY_ORDER")
+    assert "including alternatives when recommendation_order is empty" in prompt
+    assert "rejected-provider-text-do-not-replay" not in prompt + evidence
+
+
+def test_no_comparison_evidence_requires_empty_comparison_summary():
+    ctx = kandy_no_shortlist_context()
+    package = build_evidence(ctx, RecommendationAgent().recommend(ctx))
+    assert package.data["comparisons"] == []
+    def mutate(payload):
+        payload["comparison_summary"] = [statement("coverage.scope", "No comparison evidence is supplied.")]
+    result = explain(ctx, FakeProvider(mutate))
+    assert_fallback(result)
+    assert result.explanation.fallback_reason == "UNSUPPORTED_COMPARISON"
+    assert "comparison_summary must be []" in synthesis_prompt("UNSUPPORTED_COMPARISON")
+
+
+@pytest.mark.parametrize("ref,value,expected", [
+    ("decision.status", "NO_SUITABLE_OPTION", "no suitable option"),
+    ("c0.eligibility", "HARD_CONSTRAINT_VIOLATION", "hard-constraint violation"),
+    ("c0.budget.status", "POTENTIALLY_FEASIBLE", "potentially feasible"),
+    ("c0.eligibility", "INSUFFICIENT_EVIDENCE", "insufficient evidence"),
+    ("c0.known_property_facts.location", "Kundasale", "Kundasale"),
+    ("c0.strengths.0", "Expected cost fits original budget", "Expected cost fits original budget"),
+    ("c0.listing_id", "HOUSE_ID", "HOUSE_ID"),
+    ("c0.budget.price_lkr", 1500000, "LKR 1,500,000"),
+    ("c0.planning.width_ft", 30, "30 ft"),
+    ("c0.known_property_facts.bedrooms", None, "unknown"),
+])
+def test_display_values_hide_internal_paths_without_mutating_evidence(ref, value, expected):
+    from app.agents.agent4_recommendation.evidence import EvidencePackage
+    from app.agents.agent4_recommendation.explanation_models import GroundedText
+    package = EvidencePackage(data={}, facts={ref: {"value": value, "owners": []}}, json_text="{}")
+    text = GroundedText(text="Recorded evidence: {{" + ref + "}}.", evidence_refs=[ref])
+    before = deepcopy(package.facts)
+    assert render_text(text, package) == "Recorded evidence: " + expected + "."
+    assert text.evidence_refs == [ref]
+    assert package.facts == before
+
+
+def test_rendered_explanation_keeps_refs_separate_from_prose():
+    ctx = kandy_no_shortlist_context()
+    result = explain(ctx, FakeProvider())
+    assert result.explanation_status == "LLM"
+    assert result.explanation.summary == "The supplied assessment remains no suitable option."
+    prop = result.explanation.properties[0]
+    assert "c0.eligibility" in prop.evidence_refs
+    prose = " ".join([result.explanation.summary, prop.reason, *prop.strengths, *prop.trade_offs])
+    for internal in ("c0.", "decision.status", "known_property_facts", "HARD_CONSTRAINT_VIOLATION"):
+        assert internal not in prose
+    assert result.alternatives[0].eligibility == "HARD_CONSTRAINT_VIOLATION"
