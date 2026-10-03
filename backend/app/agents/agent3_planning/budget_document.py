@@ -197,6 +197,7 @@ def _write_budget_html(
     )
     warnings = "".join(f"<li>{_esc(item)}</li>" for item in option.get("warnings", []))
     features = "".join(f"<li>{_esc(item)}</li>" for item in property_data.get("features", []))
+    feature_list = f"<ul>{features}</ul>" if features else ""
     market_rows = "\n".join(
         f"<tr><td>{_esc(row['work_item'])}</td><td>{_esc(row['unit'])}</td><td>{_quantity(row['quantity'])}</td><td>{_money(row['expected_rate_lkr'])}</td><td>{_money(row['adjusted_estimate_lkr'])}</td><td>{_esc(row['source_label'])}</td></tr>"
         for row in market_item_budget
@@ -210,74 +211,137 @@ def _write_budget_html(
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PropWise Budget Report - {_esc(property_data.get('listing_id') or 'Option')}</title>
   <style>
-    body {{ margin: 0; background: #eef3f0; color: #1d2522; font-family: Arial, sans-serif; }}
-    .shell {{ max-width: 1180px; margin: 0 auto; padding: 28px; }}
-    .hero {{ border-radius: 8px; background: #087f8c; color: white; padding: 28px; }}
-    .hero h1 {{ margin: 0 0 8px; font-size: 32px; }}
-    .hero p {{ margin: 0; color: #e9fbfd; }}
-    h2 {{ margin: 28px 0 10px; }}
-    .actions {{ display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }}
-    .action {{ display: inline-flex; align-items: center; justify-content: center; min-height: 38px; border: 1px solid #d8ded8; border-radius: 8px; padding: 8px 14px; color: #06626d; background: white; font-weight: 700; text-decoration: none; }}
-    .action.primary {{ background: #087f8c; color: white; border-color: #087f8c; }}
-    .panel {{ border: 1px solid #d8ded8; border-radius: 8px; background: white; padding: 20px; margin-top: 18px; box-shadow: 0 14px 34px rgba(29, 37, 34, 0.08); }}
-    .summary {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }}
-    .box {{ border: 1px solid #d8ded8; border-radius: 8px; padding: 12px; background: #fbfcfb; }}
-    .box span {{ display: block; color: #61706a; font-size: 12px; margin-bottom: 6px; }}
-    .box strong {{ font-size: 18px; }}
-    table {{ width: 100%; border-collapse: collapse; margin: 16px 0; background: white; }}
-    th, td {{ border: 1px solid #d8ded8; padding: 9px; text-align: left; vertical-align: top; }}
-    th {{ background: #e7f3f4; color: #06626d; }}
-    .plan {{ width: 100%; max-height: 760px; object-fit: contain; border: 1px solid #d8ded8; border-radius: 8px; }}
-    .notice {{ color: #9f3a38; font-weight: 700; }}
+    :root {{ color-scheme: light; --ink: #19312b; --muted: #4e675c; --green: #194b40; --line: #afc8b8; --peach: #eda374; }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; background: #dce9df; color: var(--ink); font: 15px/1.55 Arial, sans-serif; }}
+    .shell {{ max-width: 1280px; margin: 0 auto; padding: 34px clamp(18px, 3vw, 44px) 72px; }}
+    .hero {{ display: flex; align-items: end; justify-content: space-between; gap: 30px; padding: clamp(28px, 4vw, 52px); border-radius: 8px; background: var(--green); color: #f5faf5; }}
+    .hero-label {{ margin: 0 0 15px; color: #bfe0c8; font-size: 11px; font-weight: 800; text-transform: uppercase; }}
+    .hero h1 {{ max-width: 650px; margin: 0 0 12px; font-size: clamp(30px, 3.5vw, 46px); line-height: 1.1; }}
+    .hero p {{ max-width: 570px; margin: 0; color: #d8e9dd; }}
+    .hero-total {{ min-width: 230px; padding-left: 22px; border-left: 3px solid var(--peach); }}
+    .hero-total span {{ display: block; color: #c9e0d2; font-size: 12px; }}
+    .hero-total strong {{ display: block; margin-top: 4px; color: #ffd2af; font-size: clamp(24px, 2.8vw, 36px); line-height: 1.12; white-space: nowrap; }}
+    .actions {{ display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0 30px; }}
+    .action {{ display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 17px; border: 1px solid #789e88; border-radius: 5px; color: var(--green); background: #edf5ed; font-weight: 700; text-decoration: none; }}
+    .action.primary {{ border-color: var(--peach); background: var(--peach); color: #25312b; }}
+    .action:hover {{ background: #ffffff; }}
+    .action:focus-visible {{ outline: 3px solid #b3552b; outline-offset: 3px; }}
+    .section {{ padding: 28px 0 31px; border-bottom: 1px solid var(--line); }}
+    .section h2 {{ margin: 0 0 15px; color: var(--green); font-size: 23px; line-height: 1.2; }}
+    .section p {{ margin: 7px 0; }}
+    .section-heading {{ display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }}
+    .section-heading p {{ max-width: 720px; color: var(--muted); font-size: 13px; }}
+    .property-name {{ margin: 0 0 7px; font-size: 21px; font-weight: 750; }}
+    .property-location {{ color: var(--muted); }}
+    .notice {{ margin: 0 0 2px; padding: 13px 16px; border-left: 4px solid #c46c43; border-radius: 3px; background: #f4dfcf; color: #723e29; font-weight: 700; }}
+    .summary {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 20px 0 0; }}
+    .box {{ min-width: 0; padding: 18px; border: 1px solid #83b99b; border-top: 5px solid #187261; border-radius: 6px; background: #c9e7d8; box-shadow: 0 8px 18px rgba(25, 75, 64, 0.08); }}
+    .box:nth-child(2) {{ border-color: #dda27b; border-top-color: #b85f3d; background: #f6d9c2; }}
+    .box.emphasis {{ border-color: #194b40; border-top-color: var(--peach); background: #194b40; color: white; }}
+    .box:nth-child(4) {{ border-color: #a7bc7c; border-top-color: #698943; background: #dce8bd; }}
+    .box span {{ display: block; margin-bottom: 8px; color: #496b58; font-size: 12px; }}
+    .box.emphasis span {{ color: #d5ead9; }}
+    .box strong {{ display: block; font-size: 21px; line-height: 1.25; overflow-wrap: anywhere; }}
+    .house-facts {{ display: flex; gap: 14px 32px; flex-wrap: wrap; font-weight: 700; }}
+    .house-facts span {{ color: var(--green); }}
+    .table-scroll {{ width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: #e9f2e9; }}
+    table {{ width: 100%; min-width: 680px; border-collapse: collapse; font-size: 13px; }}
+    th, td {{ padding: 12px 13px; border-bottom: 1px solid #c7d9ca; text-align: left; vertical-align: top; }}
+    th {{ background: var(--green); color: white; font-weight: 700; white-space: nowrap; }}
+    tbody tr:nth-child(even) {{ background: #e2eee4; }}
+    tbody tr:last-child td {{ border-bottom: 0; }}
+    .plan-wrap {{ padding: 18px; border: 1px solid var(--line); border-radius: 6px; background: #eaf2eb; }}
+    .plan {{ display: block; width: 100%; max-height: 760px; object-fit: contain; }}
+    .assumptions {{ padding-left: 20px; }}
+    .assumptions li {{ margin: 7px 0; }}
+    .disclaimer {{ margin-top: 23px !important; color: var(--muted); font-size: 12px; }}
+    @media (max-width: 760px) {{
+      .shell {{ padding-top: 16px; }}
+      .hero {{ align-items: start; flex-direction: column; gap: 23px; }}
+      .hero-total {{ width: 100%; min-width: 0; }}
+      .summary {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+    }}
+    @media (max-width: 440px) {{
+      .summary {{ grid-template-columns: 1fr; }}
+      .actions .action {{ flex: 1 1 100%; }}
+      .hero-total strong {{ white-space: normal; }}
+      .section h2 {{ font-size: 21px; }}
+    }}
+    @media print {{
+      body {{ background: white; print-color-adjust: exact; }}
+      .shell {{ max-width: none; padding: 0; }}
+      .actions {{ display: none; }}
+      .hero, .section, .box, .table-scroll {{ break-inside: avoid; }}
+      .table-scroll {{ overflow: visible; }}
+      table {{ min-width: 0; }}
+    }}
   </style>
 </head>
 <body>
   <main class="shell">
   <section class="hero">
-    <h1>PropWise AI Budget Report</h1>
-    <p>Approximate planning budget for the selected land and house option.</p>
+    <div>
+      <div class="hero-label">PropWise AI / Project estimate</div>
+      <h1>Your project budget</h1>
+      <p>Approximate planning budget for the selected land and house option.</p>
+    </div>
+    <div class="hero-total"><span>Expected total</span><strong>{_money(budget.get('total_expected_lkr'))}</strong></div>
   </section>
   <div class="actions">{excel_link}{csv_link}</div>
-  <section class="panel">
   <p class="notice">Conceptual AI-assisted estimate - not a contractor quotation or quantity-surveyor estimate.</p>
-  <h2>Property</h2>
-  <p><strong>{_esc(property_data.get('title') or property_data.get('listing_id') or 'Selected land')}</strong></p>
-  <p>{_esc(property_data.get('location') or '')} {_esc(property_data.get('district') or '')}</p>
-  <p>{_esc(property_data.get('address') or '')}</p>
-  <ul>{features}</ul>
+  <section class="section">
+    <h2>Selected property</h2>
+    <p class="property-name">{_esc(property_data.get('title') or property_data.get('listing_id') or 'Selected land')}</p>
+    <p class="property-location">{_esc(property_data.get('location') or '')} {_esc(property_data.get('district') or '')}</p>
+    <p>{_esc(property_data.get('address') or '')}</p>
+    {feature_list}
+  </section>
 
+  <section class="section">
+  <h2>Budget at a glance</h2>
   <div class="summary">
     <div class="box"><span>Land price</span><strong>{_money(budget.get('land_price_lkr'))}</strong></div>
     <div class="box"><span>Construction expected</span><strong>{_money(budget.get('construction_expected_lkr'))}</strong></div>
-    <div class="box"><span>Expected total</span><strong>{_money(budget.get('total_expected_lkr'))}</strong></div>
+    <div class="box emphasis"><span>Expected total</span><strong>{_money(budget.get('total_expected_lkr'))}</strong></div>
     <div class="box"><span>Expected margin</span><strong>{_money(budget.get('expected_margin_lkr'))}</strong></div>
   </div>
+  </section>
 
-  <h2>House Programme</h2>
-  <p>{house.get('bedrooms')} bedrooms, {house.get('bathrooms')} bathrooms, {house.get('floors')} floor(s), {house.get('parking_spaces')} parking space(s).</p>
-  <p>Estimated floor area: {house.get('estimated_floor_area_sqft')} sq.ft</p>
+  <section class="section">
+  <h2>House programme</h2>
+  <div class="house-facts"><span>{house.get('bedrooms')} bedrooms</span><span>{house.get('bathrooms')} bathrooms</span><span>{house.get('floors')} floor(s)</span><span>{house.get('parking_spaces')} parking space(s)</span><span>{house.get('estimated_floor_area_sqft')} sq.ft estimated</span></div>
+  </section>
 
-  <h2>Construction Budget By Material / Work Category</h2>
-  <table>
+  <section class="section">
+  <h2>Construction budget by category</h2>
+  <div class="table-scroll"><table>
     <thead><tr><th>Category</th><th>Share</th><th>Estimated amount</th><th>Includes</th></tr></thead>
     <tbody>{rows}</tbody>
-  </table>
+  </table></div>
+  </section>
 
+  <section class="section">
   <h2>Market Price Item Sheet</h2>
   <p>Work-item rows are scaled to the selected construction estimate. Material-unit rows are reference prices only until exact quantities are measured from a BOQ.</p>
-  <table>
+  <div class="table-scroll"><table>
     <thead><tr><th>Item</th><th>Unit</th><th>Qty basis</th><th>Market expected rate</th><th>Approx. item cost</th><th>Source</th></tr></thead>
     <tbody>{market_rows}</tbody>
-  </table>
+  </table></div>
+  </section>
 
-  <h2>Conceptual Floor Plan</h2>
-  {image_section}
+  <section class="section">
+  <h2>Conceptual floor plan</h2>
+  <div class="plan-wrap">{image_section}</div>
+  </section>
 
-  <h2>Warnings and Assumptions</h2>
-  <ul>{warnings}</ul>
-  <p>{_esc(COST_DISCLAIMER)}</p>
+  <section class="section">
+  <h2>Warnings and assumptions</h2>
+  <ul class="assumptions">{warnings}</ul>
+  <p class="disclaimer">{_esc(COST_DISCLAIMER)}</p>
   </section>
   </main>
 </body>
