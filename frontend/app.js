@@ -4,7 +4,6 @@ const form = document.querySelector("#requirements-form");
 const queryInput = document.querySelector("#query");
 const submitButton = document.querySelector("#submit-button");
 const intentTitle = document.querySelector("#intent-title");
-const confidence = document.querySelector("#confidence");
 const message = document.querySelector("#message");
 const fieldGrid = document.querySelector("#field-grid");
 const jsonBlock = document.querySelector("#json-block");
@@ -171,7 +170,6 @@ function showFollowUpError(question) {
 function showError(errorMessage) {
   intentTitle.textContent = "Unable to complete request";
   window.Agent4UI?.reset();
-  confidence.classList.add("hidden");
   fieldGrid.classList.add("hidden");
   jsonBlock.classList.add("hidden");
   propertiesPanel.classList.add("hidden");
@@ -183,8 +181,6 @@ function showError(errorMessage) {
 
 function showRequirements(result) {
   intentTitle.textContent = requirementTitle(result.intent);
-  confidence.textContent = `${Math.round((result.confidence || 0) * 100)}%`;
-  confidence.classList.remove("hidden");
 
   const items = [
     ["Goal", requirementTitle(result.intent)],

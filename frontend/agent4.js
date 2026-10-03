@@ -3,21 +3,45 @@
   "use strict";
   const panel = () => document.querySelector("#recommendation-panel");
   const label = (value) => String(value ?? "Unknown").replaceAll("_", " ").toLowerCase();
+  const fallbackNotice = "The search was broadened because no options satisfied all initial retrieval filters. Final options were still evaluated against your original requirements.";
+  const planningDisclaimer = "Conceptual planning only. Construction estimates are preliminary, not quotations. Professional site and design review is required.";
+  function displayText(value) {
+    return String(value)
+      .replace(/Strict constraints yielded no results\. Dropped bedroom constraints and expanded budget ceiling by 20% to find fallback properties\.|Agent 2 relaxed its filters; Agent 4 checks the original requirements\./gi, fallbackNotice)
+      .replace(/Agent 1/gi, "requirement parsing")
+      .replace(/Agent 2/gi, "property search")
+      .replace(/Agent 3/gi, "conceptual planning")
+      .replace(/Agent 4/gi, "recommendation assessment");
+  }
+  const unique = values => [...new Set((values || []).filter(Boolean).map(displayText))];
+  const excluding = (values, shown) => unique(values).filter(value => !new Set(unique(shown)).has(value));
+  function planningNotes(value) {
+    if (!value) return { assumptions: [], limitations: [], all: [] };
+    const isLimitation = text => /unavailable|cannot|not verified|not confirmed|does not represent|excluded|not included|preliminary|not construction|professional.*review/i.test(text);
+    const assumptions = unique(value.assumptions).filter(text => !isLimitation(text));
+    const disclaimer = displayText(value.disclaimer || planningDisclaimer);
+    const limitations = excluding([
+      ...unique(value.assumptions).filter(isLimitation), ...(value.warnings || []),
+    ], [...assumptions, disclaimer]);
+    return { assumptions, limitations, all: [...assumptions, ...limitations, disclaimer] };
+  }
   const el = (tag, text, className = "") => {
     const node = document.createElement(tag);
-    if (text !== undefined && text !== null) node.textContent = String(text);
+    if (text !== undefined && text !== null) node.textContent = displayText(text);
     if (className) node.className = className;
     return node;
   };
   function list(parent, heading, values) {
-    if (!Array.isArray(values) || !values.length) return;
+    values = unique(values);
+    if (!values.length) return;
     parent.appendChild(el("h4", heading));
     const ul = el("ul");
     values.forEach(value => ul.appendChild(el("li", value)));
     parent.appendChild(ul);
   }
   function details(parent, heading, values) {
-    if (!Array.isArray(values) || !values.length) return;
+    values = unique(values);
+    if (!values.length) return;
     const block = el("details", null, "a4-details");
     block.appendChild(el("summary", heading));
     list(block, "", values);
@@ -54,9 +78,10 @@
       ["Site fit", value.exact_site_fit_verified === true ? "Upstream conceptual fit flag; review dimensions and limitations" : "Not verified"],
       ["Site width / length", `${formatValue(value.width_ft)} / ${formatValue(value.length_ft)} ft`],
     ]);
-    list(parent, "Planning assumptions", value.assumptions);
-    list(parent, "Planning warnings", value.warnings);
-    parent.appendChild(el("p", value.disclaimer || "Conceptual planning only. Construction estimates are preliminary, not quotations. Professional site and design review is required.", "plan-notice"));
+    const notes = planningNotes(value);
+    list(parent, "Planning assumptions", notes.assumptions);
+    list(parent, "Planning limitations", notes.limitations);
+    parent.appendChild(el("p", value.disclaimer || planningDisclaimer, "plan-notice"));
   }
   function criteria(parent, values) {
     const block = el("details", null, "a4-details");
@@ -79,6 +104,18 @@
     const features = Array.isArray(raw.features) ? raw.features : String(raw.features || "").split(",").map(x => x.trim()).filter(Boolean);
     return { property: { ...raw, features, agent2_score: raw.score, full_ad: raw } };
   }
+  function unmetLabel(value) {
+    const text = String(value);
+    const location = /^(location|district) matches (.+)$/i.exec(text);
+    if (location) return `Does not match the requested ${location[1].toLowerCase()}: ${location[2]}`;
+    const rooms = /^(bedrooms|bathrooms|floors|parking_spaces) (at least|equals) (.+)$/i.exec(text);
+    if (rooms) {
+      const names = { bedrooms: "bedroom", bathrooms: "bathroom", floors: "floor", parking_spaces: "parking-space" };
+      return `Does not meet the requested ${names[rooms[1].toLowerCase()]} requirement: ${rooms[2]} ${rooms[3]}`;
+    }
+    if (text === "Expected cost fits original budget") return "Expected cost exceeds the original budget";
+    return text;
+  }
   function recommendationCard(item, raw, option, explanation, recommended) {
     const card = el("article", null, "a4-card");
     card.appendChild(el("p", recommended ? `Final rank ${item.rank}` : "Alternative / outside shortlist", "eyebrow"));
@@ -92,10 +129,10 @@
     }
     budget(card, item.budget);
     list(card, "Strengths", item.strengths);
-    list(card, "Trade-offs", item.trade_offs);
-    list(card, "Unmet requirements", item.unmet_requirements);
+    list(card, "Trade-offs", (item.trade_offs || []).map(value => (item.unmet_requirements || []).includes(value) ? unmetLabel(value) : value));
+    list(card, "Unmet requirements", (item.unmet_requirements || []).map(unmetLabel));
     list(card, "Uncertainty", item.uncertainty);
-    details(card, "Warnings", item.warnings);
+    details(card, "Warnings", excluding(item.warnings, planningNotes(item.planning).all));
     planning(card, item.planning);
     criteria(card, item.criteria);
     const actions = el("div", null, "option-actions");
@@ -149,9 +186,14 @@
       ? "Recommendation scope: based on the evaluated retrieved candidates only."
       : coverage.scope;
     root.appendChild(el("p", scopeNote, "muted"));
-    if (evidence.retrieval?.relaxed_filters === true) root.appendChild(el("p", "Search was broadened to find fallback options. These options were still evaluated against your original requirements.", "muted"));
-    list(root, "Warnings", response.warnings);
-    list(root, "Retrieval warnings", evidence.retrieval?.warnings);
+    const displayedItems = [...(response.recommendations || []), ...(response.alternatives || [])];
+    const displayedPlanning = [...displayedItems.map(item => item.planning), response.owned_land_assessment?.planning];
+    const planningText = displayedPlanning.flatMap(value => planningNotes(value).all);
+    const generalWarnings = excluding([
+      ...(response.warnings || []),
+      ...(evidence.retrieval?.relaxed_filters === true ? [fallbackNotice] : []),
+    ], planningText);
+    list(root, "Warnings", generalWarnings);
     list(root, "Details needed", response.clarification_questions);
     const explanation = response.explanation;
     if (explanation) {
@@ -159,7 +201,7 @@
       root.appendChild(el("p", explanation.summary));
       if (explanation.top_recommendation_reason) root.appendChild(el("p", explanation.top_recommendation_reason));
       list(root, "Comparison explanation", explanation.comparison_summary);
-      details(root, "Explanation warnings and limitations", explanation.warnings);
+      details(root, "Explanation warnings and limitations", excluding(explanation.warnings, [...planningText, ...generalWarnings]));
       list(root, "Alternative considerations", explanation.alternatives);
       list(root, "Next steps", explanation.next_steps);
       root.appendChild(el("p", explanation.explanation_scope, "muted"));
@@ -188,9 +230,9 @@
       root.appendChild(el("p", `Assessment: ${label(owned.eligibility)}. No property ranking was performed.`));
       budget(root, owned.budget);
       planning(root, owned.planning);
-      list(root, "Unmet requirements", owned.unmet_requirements);
+      list(root, "Unmet requirements", (owned.unmet_requirements || []).map(unmetLabel));
       list(root, "Uncertainty", owned.uncertainty);
-      list(root, "Limitations", owned.limitations);
+      list(root, "Limitations", excluding(owned.limitations, [...planningNotes(owned.planning).all, ...generalWarnings]));
       list(root, "Suggested next steps", owned.next_steps);
       const files = evidence.owned_plan?.files;
       if (files) {
@@ -199,8 +241,20 @@
         root.appendChild(links);
       }
     }
-    list(root, "Deterministic comparisons", (response.comparisons || []).map(c =>
-      `${c.first_listing_id} versus ${c.second_listing_id}: score difference ${Number(c.score_difference).toFixed(2)}; expected cost difference ${formatMoney(c.expected_cost_difference_lkr)} (${label(c.budget_basis)}).`));
+    const titles = new Map((evidence.properties || []).map(item => [item.listing_id, item.title || item.listing_id]));
+    displayedItems.forEach(item => { if (item.title) titles.set(item.listing_id, item.title); });
+    list(root, "Compare top options", (response.comparisons || []).map(c => {
+      const score = Number(c.score_difference);
+      const scoreText = score === 0 ? "Both options have the same decision-support score."
+        : `The first option scores ${Number(Math.abs(score).toFixed(2))} points ${score > 0 ? "higher" : "lower"}.`;
+      const cost = c.expected_cost_difference_lkr;
+      const costLabel = c.budget_basis === "TOTAL_PROJECT" ? "expected total project cost"
+        : c.budget_basis === "MONTHLY_RENT" ? "monthly rent" : "expected cost";
+      const costText = cost == null ? "Comparable cost evidence is unavailable."
+        : cost === 0 ? `Both options have the same ${costLabel}.`
+        : `The first option's ${costLabel} is approximately ${formatMoney(Math.abs(cost))} ${cost > 0 ? "higher" : "lower"}.`;
+      return `${titles.get(c.first_listing_id) || c.first_listing_id} versus ${titles.get(c.second_listing_id) || c.second_listing_id}: ${scoreText} ${costText}`;
+    }));
   }
   window.Agent4UI = { render, reset: () => { panel().replaceChildren(); panel().classList.add("hidden"); } };
 })();
