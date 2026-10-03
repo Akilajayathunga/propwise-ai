@@ -1,4 +1,6 @@
-const apiBaseUrl = "http://127.0.0.1:8000";
+const configuredApiBase = document.querySelector('meta[name="propwise-api-base"]')?.content.trim();
+const localFrontend = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const apiBaseUrl = (configuredApiBase || (localFrontend ? "http://127.0.0.1:8000" : window.location.origin)).replace(/\/$/, "");
 
 const form = document.querySelector("#requirements-form");
 const queryInput = document.querySelector("#query");
@@ -6,6 +8,7 @@ const submitButton = document.querySelector("#submit-button");
 const message = document.querySelector("#message");
 const propertiesPanel = document.querySelector("#properties-panel");
 const planningPanel = document.querySelector("#planning-panel");
+const resultsShell = document.querySelector(".results-shell");
 const optionsTitle = document.querySelector("#options-title");
 const modal = document.querySelector("#option-modal");
 const modalContent = document.querySelector("#modal-content");
@@ -13,6 +16,7 @@ const modalClose = document.querySelector("#modal-close");
 const showMoreButton = document.querySelector("#show-more-properties");
 let modalTrigger = null;
 let activeRequestId = 0;
+let activeOriginalQuery = "";
 
 let latestOptions = [];
 let pendingRequirements = null;
@@ -46,6 +50,7 @@ form.addEventListener("submit", async (event) => {
   }
 
   const requestId = ++activeRequestId;
+  if (!pendingRequirements) activeOriginalQuery = query;
   setLoading(true);
   resetResults("Finding your options...");
 
@@ -77,6 +82,7 @@ document.querySelector("#new-request").addEventListener("click", (event) => {
   pendingRequirements = null;
   pendingQuestion = null;
   ownedLandInput = {};
+  activeOriginalQuery = "";
   form.reset();
   queryInput.placeholder = "Describe the property or home you have in mind...";
   resetResults("");
@@ -130,17 +136,21 @@ async function continueWithRequirements(requirements, requestId) {
   if (requestId !== activeRequestId) return;
   window.Agent4UI.render(result);
   if (result.presentation?.owned_plan) showPlanning(result.presentation.owned_plan);
+  queryInput.value = activeOriginalQuery;
+  document.body.classList.toggle("plan-mode", Boolean(result.presentation?.owned_plan));
+  document.body.classList.add("has-results");
   if (result.status === "NEEDS_CLARIFICATION") {
     const next = nextPlanningQuestion(requirements);
     if (next) { askFollowUp(requirements, next); return; }
   }
+  resultsShell.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
 
   // Separately retrieve all Agent 2 results (>= 50% relevance) for the properties panel
   if (shouldSearchProperties(requirements.intent)) {
     try {
       const searchResult = await postJson("/api/v1/property-search", { requirements });
       if (requestId !== activeRequestId) return;
-      showProperties(searchResult);
+      showProperties(searchResult, new Set((result.recommendations || []).map((item) => item.listing_id)));
     } catch (_) {
       // Non-fatal: Agent 4 result is already shown above
     }
@@ -155,6 +165,8 @@ function setLoading(isLoading) {
 }
 
 function resetResults(text) {
+  document.body.classList.remove("has-results");
+  document.body.classList.remove("plan-mode");
   window.Agent4UI?.reset();
   closeModal();
   message.className = "search-message";
@@ -185,6 +197,8 @@ function showFollowUpError(question) {
 }
 
 function showError(errorMessage) {
+  document.body.classList.remove("has-results");
+  document.body.classList.remove("plan-mode");
   window.Agent4UI?.reset();
   propertiesPanel.classList.add("hidden");
   planningPanel.classList.add("hidden");
@@ -297,14 +311,19 @@ function optionCard(option, index) {
   return card;
 }
 
-function showProperties(result) {
+function showProperties(result, recommendedIds = new Set()) {
   const list = document.querySelector("#property-list");
   const count = document.querySelector("#property-count");
   const analysisDiv = document.querySelector("#market-analysis");
-  const results = result.results || [];
+  const allResults = result.results || [];
+  const results = allResults.filter((property) => !recommendedIds.has(property.listing_id));
   let shown = 0;
+  if (!results.length && allResults.length) {
+    propertiesPanel.classList.add("hidden");
+    return;
+  }
   propertiesPanel.classList.remove("hidden");
-  optionsTitle.textContent = "Found Properties";
+  optionsTitle.textContent = "More properties";
   list.className = "property-list";
   analysisDiv.textContent = result.warnings?.join(" ") || `${result.total_found} matching properties in the dataset.`;
   analysisDiv.classList.remove("hidden");
@@ -324,7 +343,7 @@ function showProperties(result) {
       const top = document.createElement("div");
       top.className = "property-topline";
       const rank = document.createElement("span");
-      rank.textContent = `PROPERTY ${String(index + 1).padStart(2, "0")}`;
+      rank.textContent = `LISTING ${String(index + 1).padStart(2, "0")}`;
       top.append(rank);
       const title = document.createElement("h3");
       title.textContent = p.title || p.listing_id || "Property";
@@ -353,7 +372,7 @@ function showProperties(result) {
       list.appendChild(card);
     });
     shown = Math.min(shown + 24, results.length);
-    count.textContent = `${shown} of ${results.length} properties`;
+    count.textContent = `${shown} of ${results.length} listings`;
     showMoreButton.classList.toggle("hidden", shown >= results.length);
   }
 
@@ -800,6 +819,7 @@ function downloadLink(label, path) {
 
 function fileDownloadButton(label, path) {
   const button = actionButton(label, () => downloadFile(path));
+  if (typeof path === "string" && path.toLowerCase().endsWith(".zip")) button.title = "All floors ZIP";
   if (!firstPlanUrl(path)) {
     button.disabled = true;
     button.setAttribute("aria-disabled", "true");
