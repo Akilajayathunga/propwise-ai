@@ -1121,3 +1121,66 @@ def test_land_house_prompt_limits_prose_without_omitting_candidates():
     assert "Do not add availability, approval or professional-verification disclaimers" in SYSTEM_PROMPT
     assert "Dimensions require width_ft, length_ft or exact_site_fit_verified" in synthesis_prompt("WRONG_FACT_DOMAIN")
     assert "Never replay or paraphrase the rejected statement" in synthesis_prompt("UNSAFE_OR_UNSUPPORTED_CLAIM")
+
+
+@pytest.mark.parametrize("value,expected", [
+    (None, "unknown"),
+    ("HARD_CONSTRAINT_VIOLATION", "hard-constraint violation"),
+    ("WITHIN_BUDGET", "within budget"),
+    ("POTENTIALLY_FEASIBLE", "potentially feasible"),
+    ("INSUFFICIENT_EVIDENCE", "insufficient evidence"),
+    ("ABOVE_BUDGET", "above budget"),
+    ("CONDITIONAL", "conditional"),
+])
+def test_fallback_enum_display(value, expected):
+    from app.agents.agent4_recommendation.explanations import enum_display
+    assert enum_display(value) == expected
+
+
+def test_kandy_fallback_prose_humanized_without_changing_decision():
+    ctx = kandy_no_shortlist_context()
+    decision = RecommendationAgent().recommend(ctx)
+    before = decision.model_dump(mode="json")
+    result = ExplanationService().explain(ctx, decision)
+    assert result.explanation_status == "DETERMINISTIC_FALLBACK"
+    assert result.status == "NO_SUITABLE_OPTION"
+    assert result.recommendations == []
+    assert result.alternatives[0].eligibility.value == "HARD_CONSTRAINT_VIOLATION"
+    assert result.alternatives[0].budget.status == "WITHIN_BUDGET"
+    prop = result.explanation.properties[0]
+    assert prop.listing_id == KANDY_ALTERNATIVE_ID
+    assert prop.reason == ("Eligibility: hard-constraint violation. Budget assessment: within budget. "
+                           "This option is outside the recommendation shortlist.")
+    assert result.explanation.alternatives == [
+        KANDY_ALTERNATIVE_ID + ": hard-constraint violation; review unmet requirements and uncertainty."]
+    prose = prop.reason + " ".join(result.explanation.alternatives)
+    assert "HARD_CONSTRAINT_VIOLATION" not in prose
+    assert "WITHIN_BUDGET" not in prose
+    assert "location matches Kandy" in result.alternatives[0].unmet_requirements
+    assert decision.model_dump(mode="json") == before
+    assert result.model_dump(mode="json", exclude={"explanation", "explanation_status"}) == {
+        key: value for key, value in before.items() if key not in {"explanation", "explanation_status"}}
+
+
+def test_fallback_comparison_budget_basis_is_display_only():
+    ctx = rich_land_house_context()
+    decision = RecommendationAgent().recommend(ctx)
+    result = ExplanationService().explain(ctx, decision)
+    assert result.comparisons[0].budget_basis == "TOTAL_PROJECT"
+    assert result.explanation.comparison_summary
+    assert "(total project)" in result.explanation.comparison_summary[0]
+    assert "TOTAL_PROJECT" not in " ".join(result.explanation.comparison_summary)
+    assert result.comparisons == decision.comparisons
+    assert result.explanation.top_recommendation_reason == result.explanation.properties[0].reason
+    assert "Eligibility: conditional." in result.explanation.top_recommendation_reason
+
+
+def test_fallback_enum_helper_does_not_affect_llm_rendering(monkeypatch):
+    from app.agents.agent4_recommendation import explanations
+    ctx = kandy_no_shortlist_context()
+    original = explain(ctx, FakeProvider())
+    monkeypatch.setattr(explanations, "enum_display", lambda value: "fallback-only-display-marker")
+    after = explain(ctx, FakeProvider())
+    assert original.explanation_status == after.explanation_status == "LLM"
+    assert original.model_dump() == after.model_dump()
+    assert "fallback-only-display-marker" not in after.model_dump_json()

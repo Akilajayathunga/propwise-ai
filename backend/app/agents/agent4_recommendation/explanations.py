@@ -1,4 +1,6 @@
 """Optional Phase 2 wrapper. Ranking remains independently callable and unchanged."""
+from enum import Enum
+
 from app.agents.agent4_recommendation.agent import RecommendationAgent
 from app.agents.agent4_recommendation.evidence import (
     EvidenceError, build_evidence, mandatory_notices, redact_text, selected_items,
@@ -10,6 +12,15 @@ from app.agents.agent4_recommendation.guardrails import GuardrailError, parse_dr
 from app.agents.agent4_recommendation.llm_client import ExplanationProvider, HTTPExplanationProvider, ProviderConfig, ProviderError
 from app.agents.agent4_recommendation.prompts import PROMPT_VERSION, synthesis_prompt
 from app.schemas.recommendation import RecommendationContext, RecommendationResponse
+
+
+def enum_display(value: str | Enum | None) -> str:
+    """Humanize a fallback prose value without changing the structured decision."""
+    if value is None:
+        return "unknown"
+    raw = str(value.value if isinstance(value, Enum) else value)
+    return {"HARD_CONSTRAINT_VIOLATION": "hard-constraint violation"}.get(
+        raw, raw.replace("_", " ").lower())
 
 
 def fallback_text(value: str) -> str:
@@ -28,7 +39,7 @@ def deterministic_fallback(response: RecommendationResponse, reason: str, attemp
     items = selected_items(response)
     properties = []
     for item in items:
-        detail = f"Eligibility: {item.eligibility.value}. Budget assessment: {item.budget.status}."
+        detail = f"Eligibility: {enum_display(item.eligibility)}. Budget assessment: {enum_display(item.budget.status)}."
         if item.rank is not None:
             detail = f"Deterministic rank {item.rank}; decision-support index {item.final_recommendation_score:.2f}. " + detail
         else:
@@ -53,7 +64,7 @@ def deterministic_fallback(response: RecommendationResponse, reason: str, attemp
     for comp in response.comparisons[:4]:
         text = f"{comp.first_listing_id} versus {comp.second_listing_id}: decision-support index difference {comp.score_difference:.2f}."
         if comp.expected_cost_difference_lkr is not None:
-            text += f" Expected cost difference: {comp.expected_cost_difference_lkr:g} LKR ({comp.budget_basis})."
+            text += f" Expected cost difference: {comp.expected_cost_difference_lkr:g} LKR ({enum_display(comp.budget_basis)})."
         comparisons.append(text)
     return ExplanationAttachment(
         prompt_version=PROMPT_VERSION, source="DETERMINISTIC_FALLBACK",
@@ -62,7 +73,7 @@ def deterministic_fallback(response: RecommendationResponse, reason: str, attemp
         top_recommendation_reason=properties[0].reason if response.recommendations else None,
         properties=properties, comparison_summary=comparisons,
         warnings=mandatory_notices(response),
-        alternatives=[f"{i.listing_id}: {i.eligibility.value}; review unmet requirements and uncertainty."
+        alternatives=[f"{i.listing_id}: {enum_display(i.eligibility)}; review unmet requirements and uncertainty."
                       for i in response.alternatives[:2]],
         next_steps=[fallback_text(s) for s in next_steps],
         explained_listing_ids=[i.listing_id for i in items],
