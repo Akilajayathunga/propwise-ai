@@ -3,91 +3,87 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PropWise AI - Property Assistant</title>
+    <meta name="theme-color" content="#173f39" />
+    <title>PropWise AI | Find your place</title>
     <link rel="stylesheet" href="styles.css?v=planning-follow-up" />
     <link rel="stylesheet" href="agent4.css?v=phase3" />
+    <link rel="stylesheet" href="ui-refresh.css?v=launch-1" />
   </head>
   <body>
-    <main class="workspace">
-      <section class="query-panel">
-        <p class="eyebrow">PropWise AI</p>
-        <h1>Property & Home Planner</h1>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="#home" aria-label="PropWise AI home">
+          <span class="brand-mark" aria-hidden="true">P<span>.</span></span>
+          <span class="brand-name">PropWise <span>AI</span></span>
+        </a>
+        <span class="header-context">Homes, land and what comes next.</span>
+        <a id="new-request" class="header-action" href="#query">New search <span aria-hidden="true">&#8599;</span></a>
+      </div>
+    </header>
 
-        <form id="requirements-form" class="query-form">
-          <label for="query">Property request</label>
-          <textarea id="query" name="query" maxlength="2000" rows="7" placeholder="Enter your property request"></textarea>
+    <main id="home">
+      <section class="search-stage" aria-labelledby="page-title">
+        <img class="search-backdrop" src="assets/sri-lankan-home.webp" alt="Illustrative contemporary Sri Lankan home" />
+        <div class="search-shade" aria-hidden="true"></div>
+        <div class="search-content">
+          <p class="eyebrow">PROPWISE AI <span class="eyebrow-line" aria-hidden="true"></span> SRI LANKA</p>
+          <h1 id="page-title">Find a place<br />to call yours.</h1>
 
-          <div class="a4-controls">
-            <label><input id="explanation-enabled" type="checkbox" /> Use grounded AI explanations (optional; falls back when unavailable)</label>
-          </div>
-          <button id="submit-button" class="submit-button" type="submit">Send</button>
-        </form>
-      </section>
-
-      <section class="result-panel" aria-live="polite">
-        <div class="result-header">
-          <div>
-            <p class="eyebrow">Your Requirements</p>
-            <h2 id="intent-title">Waiting for input</h2>
-          </div>
+          <form id="requirements-form" class="query-form">
+            <label for="query">What are you looking for?</label>
+            <div class="composer">
+              <textarea id="query" name="query" maxlength="2000" rows="3" placeholder="Describe the property or home you have in mind..."></textarea>
+              <button id="submit-button" class="submit-button" type="submit"><span class="button-label">Explore options</span><span aria-hidden="true">&#8594;</span></button>
+            </div>
+            <input id="explanation-enabled" type="checkbox" hidden />
+          </form>
+          <p id="message" class="search-message hidden" aria-live="polite"></p>
         </div>
-
-        <p id="message" class="empty-text">Submit a request to see your property plan.</p>
-        <div id="field-grid" class="field-grid hidden"></div>
-
-        <details id="json-block" class="json-block hidden">
-          <summary>View parsed requirements</summary>
-          <pre id="json-output"></pre>
-        </details>
+        <span class="image-note">Illustrative image</span>
       </section>
 
-      <section id="recommendation-panel" class="recommendation-panel hidden" aria-live="polite"></section>
+      <div class="results-shell">
+        <section id="recommendation-panel" class="recommendation-panel hidden" aria-live="polite"></section>
 
-      <section class="properties-panel hidden" id="properties-panel" aria-live="polite">
-        <div class="result-header">
-          <div>
-            <p class="eyebrow">Supporting Property Evidence</p>
-            <h2 id="options-title">Found Properties</h2>
+        <section id="properties-panel" class="properties-panel hidden" aria-live="polite">
+          <div class="result-header">
+            <div>
+              <p class="eyebrow">MORE TO EXPLORE</p>
+              <h2 id="options-title">Available properties</h2>
+            </div>
+            <span id="property-count" class="result-count">0 results</span>
           </div>
-          <span id="property-count" class="confidence">0 results</span>
-        </div>
-        
-        <div id="market-analysis" class="market-analysis hidden"></div>
-        <div id="property-list" class="property-list"></div>
-      </section>
+          <div id="market-analysis" class="market-analysis hidden"></div>
+          <div id="property-list" class="property-list"></div>
+          <button id="show-more-properties" class="show-more-button hidden" type="button">Show more properties</button>
+        </section>
 
-      <section class="planning-panel hidden" id="planning-panel" aria-live="polite">
-        <div class="result-header">
-          <div>
-            <p class="eyebrow">Conceptual planning</p>
-            <h2>Conceptual Plan & Budget</h2>
+        <section id="planning-panel" class="planning-panel hidden" aria-live="polite">
+          <div class="result-header">
+            <div>
+              <p class="eyebrow">YOUR HOME CONCEPT</p>
+              <h2>Plan and budget</h2>
+            </div>
           </div>
-          <span id="planning-score" class="confidence">No layout score</span>
-        </div>
-
-        <p class="plan-notice">Conceptual AI-assisted plan — not construction-ready.</p>
-        <div id="budget-grid" class="field-grid"></div>
-        <div id="planning-warnings" class="market-analysis hidden"></div>
-        <div id="floor-tabs" class="floor-tabs"></div>
-        <div id="design-preview" class="design-preview"></div>
-
-        <details id="planning-json-block" class="json-block">
-          <summary>Planning JSON</summary>
-          <pre id="planning-json-output"></pre>
-        </details>
-      </section>
+          <p class="plan-notice">Concept plan only. Confirm site fit, design and costs with qualified professionals.</p>
+          <div id="budget-grid" class="field-grid"></div>
+          <div id="planning-warnings" class="market-analysis hidden"></div>
+          <div id="floor-tabs" class="floor-tabs"></div>
+          <div id="design-preview" class="design-preview"></div>
+        </section>
+      </div>
     </main>
 
     <div id="option-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-backdrop" data-close-modal></div>
       <section class="modal-panel">
-        <button id="modal-close" class="modal-close" type="button" aria-label="Close">x</button>
-        <h2 id="modal-title">Option Details</h2>
+        <button id="modal-close" class="modal-close" type="button" aria-label="Close">&times;</button>
+        <h2 id="modal-title">Details</h2>
         <div id="modal-content"></div>
       </section>
     </div>
 
-    <script src="app.js?v=agent2-direct"></script>
-    <script src="agent4.js?v=phase3"></script>
+    <script src="app.js?v=launch-1"></script>
+    <script src="agent4.js?v=launch-1"></script>
   </body>
 </html>

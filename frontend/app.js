@@ -3,17 +3,16 @@ const apiBaseUrl = "http://127.0.0.1:8000";
 const form = document.querySelector("#requirements-form");
 const queryInput = document.querySelector("#query");
 const submitButton = document.querySelector("#submit-button");
-const intentTitle = document.querySelector("#intent-title");
 const message = document.querySelector("#message");
-const fieldGrid = document.querySelector("#field-grid");
-const jsonBlock = document.querySelector("#json-block");
-const jsonOutput = document.querySelector("#json-output");
 const propertiesPanel = document.querySelector("#properties-panel");
 const planningPanel = document.querySelector("#planning-panel");
 const optionsTitle = document.querySelector("#options-title");
 const modal = document.querySelector("#option-modal");
 const modalContent = document.querySelector("#modal-content");
 const modalClose = document.querySelector("#modal-close");
+const showMoreButton = document.querySelector("#show-more-properties");
+let modalTrigger = null;
+let activeRequestId = 0;
 
 let latestOptions = [];
 let pendingRequirements = null;
@@ -46,8 +45,9 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
+  const requestId = ++activeRequestId;
   setLoading(true);
-  resetResults("Understanding your request...");
+  resetResults("Finding your options...");
 
   try {
     if (!pendingRequirements) ownedLandInput = {};
@@ -55,6 +55,7 @@ form.addEventListener("submit", async (event) => {
       ? mergeFollowUpAnswer(pendingRequirements, pendingQuestion, query)
       : await postJson("/api/v1/requirements/parse", { query });
 
+    if (requestId !== activeRequestId) return;
     if (!requirements) {
       showFollowUpError(pendingQuestion);
       return;
@@ -62,17 +63,34 @@ form.addEventListener("submit", async (event) => {
 
     pendingRequirements = null;
     pendingQuestion = null;
-    await continueWithRequirements(requirements);
+    await continueWithRequirements(requirements, requestId);
   } catch (error) {
-    showError(error instanceof Error ? error.message : "Unable to reach the backend.");
+    if (requestId === activeRequestId) showError(error instanceof Error ? error.message : "Unable to reach the backend.");
   } finally {
-    setLoading(false);
+    if (requestId === activeRequestId) setLoading(false);
   }
+});
+
+document.querySelector("#new-request").addEventListener("click", (event) => {
+  event.preventDefault();
+  activeRequestId += 1;
+  pendingRequirements = null;
+  pendingQuestion = null;
+  ownedLandInput = {};
+  form.reset();
+  queryInput.placeholder = "Describe the property or home you have in mind...";
+  resetResults("");
+  setLoading(false);
+  queryInput.scrollIntoView({ block: "center" });
+  queryInput.focus();
 });
 
 modalClose.addEventListener("click", closeModal);
 modal.addEventListener("click", (event) => {
   if (event.target.dataset.closeModal !== undefined) closeModal();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !modal.classList.contains("hidden")) closeModal();
 });
 
 async function postJson(path, body) {
@@ -90,27 +108,26 @@ async function postJson(path, body) {
   return response.json();
 }
 
-async function continueWithRequirements(requirements) {
-  showRequirements(requirements);
-
+async function continueWithRequirements(requirements, requestId) {
   const followUp = nextPlanningQuestion(requirements);
   if (followUp) {
     askFollowUp(requirements, followUp);
     return;
   }
 
-  queryInput.placeholder = "Enter your property request";
+  queryInput.placeholder = "Describe the property or home you have in mind...";
 
   message.textContent = isPlanningIntent(requirements.intent)
-    ? "Evaluating requirements, conceptual plans and recommendations..."
-    : "Retrieving candidates and preparing final recommendations...";
+    ? "Finding options and preparing your home plan..."
+    : "Finding properties that fit your search...";
   const request = {
     requirements,
-    top_k: 10,
+    top_k: 3,
     explanation_enabled: document.querySelector("#explanation-enabled").checked,
   };
   if (requirements.intent === "PLAN_HOUSE") request.owned_land = { ...ownedLandInput };
   const result = await postJson("/api/v1/recommendation", request);
+  if (requestId !== activeRequestId) return;
   window.Agent4UI.render(result);
   if (result.presentation?.owned_plan) showPlanning(result.presentation.owned_plan);
   if (result.status === "NEEDS_CLARIFICATION") {
@@ -122,6 +139,7 @@ async function continueWithRequirements(requirements) {
   if (shouldSearchProperties(requirements.intent)) {
     try {
       const searchResult = await postJson("/api/v1/property-search", { requirements });
+      if (requestId !== activeRequestId) return;
       showProperties(searchResult);
     } catch (_) {
       // Non-fatal: Agent 4 result is already shown above
@@ -133,19 +151,18 @@ async function continueWithRequirements(requirements) {
 
 function setLoading(isLoading) {
   submitButton.disabled = isLoading;
-  submitButton.textContent = isLoading ? "Working..." : pendingQuestion ? "Send details" : "Send";
+  submitButton.querySelector(".button-label").textContent = isLoading ? "Searching..." : pendingQuestion ? "Send details" : "Explore options";
 }
 
 function resetResults(text) {
   window.Agent4UI?.reset();
   closeModal();
-  message.className = "empty-text";
+  message.className = "search-message";
   message.textContent = text;
-  message.classList.remove("hidden");
-  fieldGrid.classList.add("hidden");
-  jsonBlock.classList.add("hidden");
+  message.classList.toggle("hidden", !text);
   propertiesPanel.classList.add("hidden");
   planningPanel.classList.add("hidden");
+  showMoreButton.classList.add("hidden");
 }
 
 function askFollowUp(requirements, question) {
@@ -168,36 +185,13 @@ function showFollowUpError(question) {
 }
 
 function showError(errorMessage) {
-  intentTitle.textContent = "Unable to complete request";
   window.Agent4UI?.reset();
-  fieldGrid.classList.add("hidden");
-  jsonBlock.classList.add("hidden");
   propertiesPanel.classList.add("hidden");
   planningPanel.classList.add("hidden");
-  message.className = "error-text";
+  showMoreButton.classList.add("hidden");
+  message.className = "search-message error-text";
   message.textContent = errorMessage;
   message.classList.remove("hidden");
-}
-
-function showRequirements(result) {
-  intentTitle.textContent = requirementTitle(result.intent);
-
-  const items = [
-    ["Goal", requirementTitle(result.intent)],
-    ["Location", result.location],
-    ["Home", homeSummary(result)],
-    ["Project budget", formatCompactMoney(result.total_project_budget_lkr)],
-    ["Land budget", formatCompactMoney(result.maximum_land_budget_lkr)],
-    ["Construction budget", formatCompactMoney(result.construction_budget_lkr)],
-    ["Property type", result.property_type],
-  ].filter(([, value]) => value && value !== "Not provided");
-
-  fieldGrid.innerHTML = "";
-  items.forEach(([label, value]) => fieldGrid.appendChild(summaryItem(label, value)));
-  fieldGrid.classList.remove("hidden");
-
-  jsonOutput.textContent = JSON.stringify(result, null, 2);
-  jsonBlock.classList.remove("hidden");
 }
 
 function showLandHouseOptions(evaluation, requirements) {
@@ -206,6 +200,7 @@ function showLandHouseOptions(evaluation, requirements) {
   const analysis = document.querySelector("#market-analysis");
 
   latestOptions = evaluation.options || [];
+  showMoreButton.classList.add("hidden");
   propertiesPanel.classList.remove("hidden");
   optionsTitle.textContent = "Supporting Land + House Plans";
   count.textContent = `${evaluation.returned} options`;
@@ -240,9 +235,7 @@ function optionCard(option, index) {
   const badge = document.createElement("span");
   badge.className = "match-badge";
   badge.textContent = `Planning option ${index + 1}`;
-  const score = document.createElement("strong");
-  score.textContent = `Upstream combination: ${Number(option.combination_score || 0).toFixed(1)} / 100`;
-  top.append(badge, score);
+  top.append(badge);
 
   const title = document.createElement("h3");
   title.textContent = `${property.location || "Land"}${property.land_size_perches ? ` - ${property.land_size_perches} perches` : ""}`;
@@ -308,43 +301,73 @@ function showProperties(result) {
   const list = document.querySelector("#property-list");
   const count = document.querySelector("#property-count");
   const analysisDiv = document.querySelector("#market-analysis");
+  const results = result.results || [];
+  let shown = 0;
   propertiesPanel.classList.remove("hidden");
   optionsTitle.textContent = "Found Properties";
-  count.textContent = `${result.returned} of ${result.total_found} results`;
   list.className = "property-list";
-  analysisDiv.textContent = result.warnings?.join(" ") || "Property matches from the local dataset.";
+  analysisDiv.textContent = result.warnings?.join(" ") || `${result.total_found} matching properties in the dataset.`;
   analysisDiv.classList.remove("hidden");
-  list.innerHTML = "";
-  result.results.forEach((p) => {
-    const card = document.createElement("div");
-    card.className = "property-card";
-    const title = document.createElement("h3");
-    title.textContent = p.title || p.listing_id || "Property";
-    const meta = document.createElement("div");
-    meta.className = "property-meta";
-    [`${p.location || "Unknown"} ${p.district ? `(${p.district})` : ""}`, `${p.property_type} / ${p.listing_type}`, `Retrieval relevance ${Number(p.score || 0).toFixed(2)} / 1`].forEach((text) => {
-      const span = document.createElement("span");
-      span.textContent = text;
-      meta.appendChild(span);
+  list.replaceChildren();
+  if (!results.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-text";
+    empty.textContent = "No properties matched this request.";
+    list.appendChild(empty);
+  }
+
+  function appendNextPage() {
+    results.slice(shown, shown + 24).forEach((p, offset) => {
+      const index = shown + offset;
+      const card = document.createElement("article");
+      card.className = "property-card";
+      const top = document.createElement("div");
+      top.className = "property-topline";
+      const rank = document.createElement("span");
+      rank.textContent = `PROPERTY ${String(index + 1).padStart(2, "0")}`;
+      top.append(rank);
+      const title = document.createElement("h3");
+      title.textContent = p.title || p.listing_id || "Property";
+      const meta = document.createElement("div");
+      meta.className = "property-meta";
+      [`${p.location || "Unknown"} ${p.district ? `(${p.district})` : ""}`, `${p.property_type} / ${p.listing_type}`].forEach((text) => {
+        const span = document.createElement("span");
+        span.textContent = text;
+        meta.appendChild(span);
+      });
+      const price = document.createElement("div");
+      price.className = "property-price";
+      price.textContent = p.listing_type === "rent" ? `${formatMoney(p.rent_monthly_lkr)} / month` : formatMoney(p.sale_total_price_lkr || p.price_lkr);
+      const actions = document.createElement("div");
+      actions.className = "option-actions";
+      actions.appendChild(actionButton("View ad details", () => openAdDetailsModal({
+        property: {
+          ...p,
+          agent2_score: p.score,
+          land_price_lkr: p.sale_total_price_lkr ?? p.price_lkr,
+          features: Array.isArray(p.features) ? p.features : String(p.features || "").split(",").map((item) => item.trim()).filter(Boolean),
+          full_ad: p,
+        },
+      })));
+      card.append(top, title, meta, price, actions);
+      list.appendChild(card);
     });
-    const price = document.createElement("div");
-    price.className = "property-price";
-    price.textContent = p.listing_type === "rent" ? `${formatMoney(p.rent_monthly_lkr)} / month` : formatMoney(p.sale_total_price_lkr || p.price_lkr);
-    card.append(title, meta, price);
-    list.appendChild(card);
-  });
+    shown = Math.min(shown + 24, results.length);
+    count.textContent = `${shown} of ${results.length} properties`;
+    showMoreButton.classList.toggle("hidden", shown >= results.length);
+  }
+
+  showMoreButton.onclick = appendNextPage;
+  appendNextPage();
 }
 
 function showPlanning(result) {
-  const score = document.querySelector("#planning-score");
   const budgetGrid = document.querySelector("#budget-grid");
   const warnings = document.querySelector("#planning-warnings");
   const preview = document.querySelector("#design-preview");
   const floorTabs = document.querySelector("#floor-tabs");
-  const jsonOutput = document.querySelector("#planning-json-output");
 
   planningPanel.classList.remove("hidden");
-  score.textContent = result.layout_score === null || result.layout_score === undefined ? "No score" : `Layout quality: ${Number(result.layout_score).toFixed(1)} / 100`;
   const roomSummary = summarizeRooms(result.plan?.rooms || []);
   budgetGrid.innerHTML = "";
   [
@@ -360,7 +383,6 @@ function showPlanning(result) {
   warnings.textContent = result.warnings?.join(" ") || "";
   warnings.classList.toggle("hidden", !result.warnings?.length);
   renderPlanPreview(preview, floorTabs, result.files?.png?.length ? result.files.png : result.files?.svg || [], result);
-  jsonOutput.textContent = JSON.stringify(result, null, 2);
 }
 
 function openOptionModal(option) {
@@ -376,7 +398,6 @@ function openOptionModal(option) {
     summaryItem("Property", `${property.location || "Land"}${property.land_size_perches ? ` - ${property.land_size_perches} perches` : ""}`),
     summaryItem("House", `${formatCount(house.bedrooms, "Bed")} - ${formatCount(house.bathrooms, "Bath")} - ${formatCount(house.floors, "Floor")}`),
     summaryItem("Status", friendlyStatus(budget.budget_status)),
-    summaryItem("Upstream combination index", `${Number(option.combination_score || 0).toFixed(1)} / 100`),
   );
 
   const planTabs = document.createElement("div");
@@ -399,34 +420,24 @@ function openOptionModal(option) {
     ["Expected margin", formatCompactMoney(budget.expected_margin_lkr)],
   ].forEach(([label, value]) => budgetBlock.appendChild(budgetRow(label, value)));
 
-  const details = document.createElement("details");
-  details.className = "json-block";
-  const summary = document.createElement("summary");
-  summary.textContent = "View technical data";
-  const pre = document.createElement("pre");
-  pre.textContent = JSON.stringify(option, null, 2);
-  details.append(summary, pre);
-
   const downloads = document.createElement("div");
   downloads.className = "file-links";
   [
-    ["Budget doc", planning.budget_doc_url],
-    ["SVG", planning.svg_url],
+    ["View full budget", planning.budget_doc_url],
   ].forEach(([label, path]) => downloads.appendChild(downloadLink(label, path)));
   [
-    ["All floors ZIP", planning.zip_url],
-    ["Plan image", planning.png_url],
-    ["Budget CSV", planning.budget_csv_url],
-    ["DXF", planning.dxf_url],
-    ["Plan JSON", planning.json_url],
+    ["Download all floors", planning.zip_url],
+    ["Download plan image", planning.png_url],
+    ["Download budget CSV", planning.budget_csv_url],
+    ["Download DXF", planning.dxf_url],
   ].forEach(([label, path]) => downloads.appendChild(fileDownloadButton(label, path)));
 
   const warning = document.createElement("p");
   warning.className = "plan-notice";
   warning.textContent = "Conceptual AI-assisted plan - not construction-ready. Final design, cost, site suitability and approvals must be verified by qualified professionals.";
 
-  modalContent.append(header, planTabs, planPreview, budgetBlock, downloads, warning, details);
-  modal.classList.remove("hidden");
+  modalContent.append(header, planTabs, planPreview, budgetBlock, downloads, warning);
+  showModal("Conceptual plan");
 }
 
 function openAdDetailsModal(option) {
@@ -436,13 +447,9 @@ function openAdDetailsModal(option) {
   const contactNumber = ad.contact_number || property.contact_number || extractContactNumber(caption) || extractContactNumber(JSON.stringify(ad)) || "Not mentioned in ad";
   modalContent.innerHTML = "";
 
-  const title = document.createElement("h2");
-  title.textContent = "Ad details";
-
   const header = document.createElement("div");
   header.className = "modal-summary";
   [
-    ["Listing ID", property.listing_id || ad.listing_id],
     ["Location", [property.location || ad.location, property.district || ad.district].filter(Boolean).join(", ")],
     ["Listing type", ad.listing_type || "sale"],
     ["Property type", ad.property_type || "land"],
@@ -450,7 +457,6 @@ function openAdDetailsModal(option) {
     ["Price", ad.listing_type === "rent" ? `${formatMoney(ad.rent_monthly_lkr)} / month` : formatMoney(property.land_price_lkr ?? ad.sale_total_price_lkr)],
     ["Contact number", contactNumber],
     ["Verified", ad.is_verified === undefined ? null : ad.is_verified ? "Yes" : "No"],
-    ["Retrieval relevance (upstream)", property.agent2_score === undefined ? null : `${Number(property.agent2_score).toFixed(3)} / 1`],
   ]
     .filter(([, value]) => value !== null && value !== undefined && value !== "")
     .forEach(([label, value]) => header.appendChild(summaryItem(label, value)));
@@ -490,28 +496,18 @@ function openAdDetailsModal(option) {
     captionPanel.appendChild(captionNotice);
   }
 
-  const textBox = document.createElement("textarea");
-  textBox.className = "ad-textbox";
-  textBox.readOnly = true;
-  textBox.value = formatAdText(property, ad);
+  const reference = document.createElement("p");
+  reference.className = "listing-reference";
+  reference.textContent = `Listing reference: ${property.listing_id || ad.listing_id || "Not provided"}`;
 
-  const fullAdPanel = document.createElement("div");
-  fullAdPanel.className = "full-ad-panel";
-  const fullAdTitle = document.createElement("h3");
-  fullAdTitle.textContent = "Available ad details";
-  fullAdPanel.append(fullAdTitle, textBox);
-
-  modalContent.append(title, header, address, captionPanel, features, fullAdPanel);
-  modal.classList.remove("hidden");
+  modalContent.append(header, address, captionPanel, features, reference);
+  showModal("Ad details");
 }
 
 async function openBudgetSummaryModal(option) {
   const planning = option.planning || {};
   const budget = option.budget || {};
   modalContent.innerHTML = "";
-
-  const title = document.createElement("h2");
-  title.textContent = "Budget summary";
 
   const topActions = document.createElement("div");
   topActions.className = "modal-actions";
@@ -536,8 +532,8 @@ async function openBudgetSummaryModal(option) {
   table.className = "budget-table";
   table.innerHTML = "<thead><tr><th>Item</th><th>Unit</th><th>Qty basis</th><th>Rate</th><th>Approx. cost</th></tr></thead><tbody></tbody>";
 
-  modalContent.append(title, topActions, summary, itemCount, table);
-  modal.classList.remove("hidden");
+  modalContent.append(topActions, summary, itemCount, table);
+  showModal("Budget summary");
 
   try {
     const csvText = await fetchTextFile(planning.budget_csv_url);
@@ -559,9 +555,18 @@ async function openBudgetSummaryModal(option) {
   }
 }
 
+function showModal(title) {
+  document.querySelector("#modal-title").textContent = title;
+  modalTrigger = document.activeElement;
+  modal.classList.remove("hidden");
+  modalClose.focus();
+}
+
 function closeModal() {
   modal.classList.add("hidden");
   modalContent.innerHTML = "";
+  if (modalTrigger instanceof HTMLElement && modalTrigger.isConnected) modalTrigger.focus();
+  modalTrigger = null;
 }
 
 function renderPlanPreview(container, tabs, svgPaths, planNoticeSource = null) {
