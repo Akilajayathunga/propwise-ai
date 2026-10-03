@@ -29,6 +29,11 @@ cryptographically authenticate arbitrary caller-supplied decisions.
 
 ## Configuration and provider boundary
 
+Accepted live configuration: **Gemini**, model **`gemini-3.1-flash-lite`**.
+Gemini only synthesizes grounded explanations of the authoritative deterministic
+result. It does not decide eligibility, budgets or ranking. OpenAI remains supported;
+the recorded live acceptance results below concern Gemini, not live OpenAI testing.
+
 Reuse existing `LLM_PROVIDER` (`openai` or `gemini`), `LLM_MODEL`,
 `OPENAI_API_KEY` and `GEMINI_API_KEY`. Keys come from project settings/environment,
 never source code or evidence. Set a model supporting the provider's JSON-schema
@@ -45,7 +50,16 @@ No tools, database access, URL retrieval, file access or application actions are
 supplied to the model. HTTP retries are not enabled.
 
 OpenAI uses the Responses API with JSON Schema and `store=False`. Gemini uses
-`generateContent` with JSON MIME type/schema. Provider keys are authentication
+`generateContent` with `generationConfig.responseFormat.text`,
+`mimeType: "APPLICATION_JSON"` and a normalized schema; `candidateCount` is absent.
+The Gemini-only wire-schema workaround removes string `minLength`/`maxLength`
+constraints and the root `ExplanationDraft.properties` and `comparison_summary`
+`maxItems` bounds. Other supported structure, including references, stays intact.
+The original Pydantic models still enforce all limits locally. OpenAI receives its
+original schema unchanged. This records the tested implementation, not a general
+claim that Gemini rejects all array upper bounds.
+
+Provider keys are authentication
 headers, never URL parameters. Errors are sanitized application codes; no provider
 body, key, request object or exception detail is included in the recommendation.
 The shared LLM stub is unchanged.
@@ -57,7 +71,18 @@ Provider references:
 
 ## Evidence and prompt
 
-Prompt version: **propwise-agent4-explanation-v1**, defined in `prompts.py`.
+Prompt version: **propwise-agent4-explanation-v5**, defined in `prompts.py`.
+It preserves deterministic authority and candidate identities, requires exact
+facts-key citations, and uses neutral grounded prose with land+house-specific
+rules and fixed repair hints. No tools/actions are supplied.
+
+Both `GroundedText.evidence_refs` and `{{...}}` placeholders must copy exact keys
+from `facts`; paths elsewhere in requirements/items are not automatically citable.
+A notice referenced by `required_notice_refs` is cited as `notice.N`, not the
+array's index path. References cannot be invented, shortened or moved across
+candidates. Missing information remains unknown. Land+house prose uses neutral
+labels and placeholders, avoiding inferred feasibility, approval or availability
+claims; optional prose may be omitted while all selected property entries remain.
 
 The model may explain the supplied ranking, strengths, trade-offs, comparisons,
 uncertainty, alternatives and next steps. It cannot invent properties or facts,
@@ -70,14 +95,28 @@ criterion breakdowns, selected property facts, budgets, planning evidence,
 assumptions, warnings, uncertainty, comparisons and coverage. Explanations cover
 only this subset; the complete Phase 1 result is preserved.
 
+`MAX_RECOMMENDATIONS = 5` and `MAX_ALTERNATIVES = 2` are **explanation-package
+bounds only**. The public deterministic request independently accepts `top_k`
+from 1 to 10. A response can retain 10 recommendations while the explanation covers
+at most its first 5 recommendations + 2 alternatives. Two recommendations in a
+particular example is an observed result, not a new limit.
+
 Contact fields, addresses, artifact paths, provider settings and arbitrary state
 are not selected. Obvious contact information, URLs, paths and secret-like strings
 in excerpts are redacted. Short original-query and description excerpts are marked
 untrusted and cannot be cited as factual proof. All upstream text, including text
 inside warnings/requirements, remains data rather than instructions.
 
-The serialized package is limited to 64,000 bytes. Excessive evidence triggers
-fallback instead of dropping decision evidence to make a provider call. Individual
+The serialized model-facing package is limited to **64,000 bytes**. Smaller
+packages retain their existing representation. When the expanded package exceeds
+that bound, only the wire representation is compacted: items retain identity and
+decision echoes; detailed scalar facts remain under their original keys in `facts`.
+Redundant `value` wrappers and duplicate notice strings are removed from the wire;
+`required_notice_refs` points to the existing `notice.N` facts. The complete
+internal structured evidence and owner-aware fact registry are unchanged.
+Compaction removes duplicate representations, not authoritative facts or candidates.
+If the compacted package still exceeds the limit, it fails safely before any
+provider call. No unbounded payload or increased byte limit is used. Individual
 free-text values above 10,000 characters are refused. Excerpts and fallback display
 text are bounded; any shortened fallback notices point back to the complete
 deterministic evidence. Redaction is heuristic, not comprehensive personal-data
@@ -95,7 +134,7 @@ objects with evidence references. Validation proceeds as follows:
 5. Validate evidence references, candidate ownership and top-recommendation references.
 6. Require factual/numeric prose to use `{{evidence.reference}}` placeholders.
    Literal numbers and common spelled-out numbers are rejected; Python inserts
-   labelled values from the existing evidence. Requested values and raw descriptions
+   authoritative display values with applicable units from the existing evidence. Requested values and raw descriptions
    are not citable property facts.
 7. Reject obvious invented IDs, unknown facts presented as known, violations used
    as strengths, unsupported approval/availability/guarantee claims, instruction
@@ -105,7 +144,12 @@ objects with evidence references. Validation proceeds as follows:
    conceptual-planning limitations and preliminary-estimate qualifications.
 
 The model has no authority to suppress material warnings. Numeric labels/units
-travel with the substituted values. Raw LLM JSON is not attached to the result.
+travel with the substituted values. Rendered prose hides internal paths such as
+`c0.*` and humanizes status/eligibility values; structured evidence references and
+enums remain intact. Raw LLM JSON is not attached to the result.
+Prompt injection cannot change ranking because model output is never used to
+write deterministic decision fields. This separation is distinct from guaranteeing
+perfect detection of every possible malicious or misleading sentence.
 
 These checks are conservative and can reject benign prose. They are **not a proof
 of semantic entailment**: subtle factual implications, misleading phrasing,
@@ -125,18 +169,28 @@ explicit reason and request-attempt count.
 
 There is at most one synthesis request and, for invalid structured output, one
 fresh repair request. Set `allow_repair=False` to disable repair. Repair includes
-only a fixed validation error code and the same evidence, never raw rejected
-output or exception text. Transport failures do not trigger repair.
+only a fixed validation error code, application-authored repair guidance and the
+same evidence, never raw rejected output or arbitrary exception text. Transport failures do not trigger repair.
 
 Fallback provides a status summary, per-option deterministic reason/strengths/
 trade-offs, warnings, comparisons, alternatives and next steps. Owned-land output
 remains a plan assessment with no fabricated property ranking. Clarification and
 empty-result responses also remain usable.
+Fallback prose humanizes enum labels: for example,
+`Eligibility: hard-constraint violation. Budget assessment: within budget.`
+Alternatives and comparison budget-basis labels are humanized too. Structured
+`eligibility`, budget status and response status remain unchanged.
+
+Evidence failures expose only the whitelisted codes `EVIDENCE_TOO_LARGE`,
+`TEXT_TOO_LARGE` and `CONTEXT_ID_MISMATCH`; unknown evidence errors map to
+`EVIDENCE_UNAVAILABLE_OR_TOO_LARGE`. They cause zero provider attempts. Provider
+HTTP diagnostics retain sanitized status/category internally; public fallback
+remains generic and does not expose request/response bodies, credentials or paths.
 
 ## Tests and scope
 
 ```text
-python -B -m pytest -p no:cacheprovider tests/test_agent4.py tests/test_agent4_phase2.py -q
+python -B -m pytest -p no:cacheprovider tests/test_agent4.py tests/test_agent4_phase2.py tests/test_agent4_phase3.py -q
 ```
 
 Phase 2 tests use fake providers and HTTPX MockTransport. An autouse fixture blocks
@@ -146,6 +200,14 @@ prompt injection, privacy filtering, missing evidence, provider payloads, refusa
 timeouts and size limits. Phase 1 tests are unchanged. No live smoke test is added;
 no paid requests are part of this suite.
 
-Live account access, selected-model compatibility, latency/cost and real-model
-explanation quality have not been measured. No changes to Agents 1--3, ranking
-formulas, shared LLM service, API/router, frontend or LangGraph are part of Phase 2.
+The accepted test snapshot is **305 Agent 4 Phase 1-3 tests passing** and
+**398 full backend tests passing**, with no failures. See the
+[final acceptance record](agent4-phase3.md#final-acceptance-snapshot-2026-10-03)
+for warning details, reproducible scenario measurements and live results.
+Controlled Gemini tests verified both Kandy property and Kottawa land+house
+explanations with `source=LLM`, `fallback_reason=null`, `attempts=1`.
+These observed successes do not guarantee every future request or provider uptime;
+latency/cost benchmarking and broad semantic-quality evaluation remain separate.
+Agents 1-3 algorithms, deterministic ranking, and the shared LLM stub remain
+unchanged by this explanation layer. API/frontend integration is documented in
+Phase 3; LangGraph is not used.

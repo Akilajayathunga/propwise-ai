@@ -1,10 +1,10 @@
 # PropWise AI
 
-PropWise AI is a university project for IT3041 – Information Retrieval and Web Analytics. It is planned as an agentic AI-based platform for property discovery, home planning, and construction budget estimation.
+PropWise AI is a university project for IT3041 – Information Retrieval and Web Analytics. It implements property discovery, conceptual home planning, construction budget estimation, and final recommendation and decision support.
 
 ## Problem
 
-Property search and home planning require users to connect scattered information: location preferences, property listings, land constraints, construction budgets, and final trade-offs. PropWise AI will eventually coordinate specialized agents to help users move from natural language requirements to property and planning recommendations.
+Property search and home planning require users to connect scattered information: location preferences, property listings, land constraints, construction budgets, and final trade-offs. PropWise AI coordinates specialized agents through direct backend calls to move from natural-language requirements to property and planning recommendations.
 
 ## Main User Scenarios
 
@@ -19,9 +19,30 @@ Property search and home planning require users to connect scattered information
 - Agent 3: Home Planning & Budget Estimation.
 - Agent 4: Recommendation & Decision Support.
 
-Agent implementations are intentionally not included in this foundation phase.
+Agent 4 is implemented and accepted as **READY FOR FINAL DEMO**. Its deterministic
+Python engine owns eligibility, budget assessment, final scores/ranking, alternatives,
+comparisons, candidate coverage and owned-land assessment. Optional Gemini output
+only explains that decision; it cannot change it.
 
-## Planned Technology Stack
+The accepted explanation configuration uses Gemini `gemini-3.1-flash-lite` and
+`propwise-agent4-explanation-v5`. Credentials remain in local configuration and must
+never be committed. OpenAI remains supported by the provider adapter.
+
+See [current architecture](docs/architecture.md), [grounded explanations](docs/agent4-phase2.md)
+and [API, demo and final acceptance results](docs/agent4-phase3.md).
+The final acceptance snapshot records **305 Agent 4 tests** and **398 full backend
+tests passing**, with no failures. These are overlapping suites, not additive totals.
+
+## Current Demo Stack
+
+The demo uses vanilla HTML/CSS/JavaScript, Python/FastAPI, existing property retrieval
+and conceptual planning services, and direct Agent 4 orchestration. LangGraph,
+Next.js, Supabase migration and pgvector are not required by the implemented Agent 4 flow.
+
+## Historical Foundation Technology Plan
+
+The original proposed stack below is retained as a design record, not a description
+of the deployed demo:
 
 - Frontend: Next.js with TypeScript.
 - Backend: Python with FastAPI.
@@ -32,15 +53,15 @@ Agent implementations are intentionally not included in this foundation phase.
 - CAD: Python with ezdxf.
 - LLMs: OpenAI or Gemini through a provider abstraction.
 
-Only the minimal backend scaffold dependencies are included for now.
+The foundation originally included only scaffold dependencies; current dependencies are listed in `backend/requirements.txt`.
 
 ## Repository Structure
 
 ```text
-backend/    FastAPI backend scaffold, future agents, scripts, and tests
-frontend/   Placeholder for the future Next.js application
+backend/    FastAPI routes, agent implementations, scripts, and tests
+frontend/   Vanilla HTML/CSS/JavaScript demo with Agent 4 results
 data/       Raw, processed, local, sample, and knowledge dataset folders
-storage/    Local/generated storage placeholder
+storage/    Generated conceptual planning artifacts
 docs/       Architecture, contracts, dataset, and team documents
 ```
 
