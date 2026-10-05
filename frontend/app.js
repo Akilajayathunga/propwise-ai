@@ -128,7 +128,7 @@ async function continueWithRequirements(requirements, requestId) {
     : "Finding properties that fit your search...";
   const request = {
     requirements,
-    top_k: 3,
+    top_k: 10,
     explanation_enabled: document.querySelector("#explanation-enabled").checked,
   };
   if (requirements.intent === "PLAN_HOUSE") request.owned_land = { ...ownedLandInput };
@@ -150,7 +150,7 @@ async function continueWithRequirements(requirements, requestId) {
     try {
       const searchResult = await postJson("/api/v1/property-search", { requirements });
       if (requestId !== activeRequestId) return;
-      showProperties(searchResult, new Set((result.recommendations || []).map((item) => item.listing_id)));
+      showProperties(searchResult, new Set([...(result.recommendations || []), ...(result.alternatives || [])].map((item) => item.listing_id)));
     } catch (_) {
       // Non-fatal: Agent 4 result is already shown above
     }
@@ -318,23 +318,16 @@ function showProperties(result, recommendedIds = new Set()) {
   const allResults = result.results || [];
   const results = allResults.filter((property) => !recommendedIds.has(property.listing_id));
   let shown = 0;
-  if (!results.length && allResults.length) {
+  if (!results.length) {
     propertiesPanel.classList.add("hidden");
     return;
   }
   propertiesPanel.classList.remove("hidden");
-  optionsTitle.textContent = "More properties";
+  optionsTitle.textContent = "Additional retrieved listings";
   list.className = "property-list";
-  analysisDiv.textContent = result.warnings?.join(" ") || `${result.total_found} matching properties in the dataset.`;
+  analysisDiv.textContent = ["These are additional search results, not final recommendations.", ...(result.warnings || [])].join(" ");
   analysisDiv.classList.remove("hidden");
   list.replaceChildren();
-  if (!results.length) {
-    const empty = document.createElement("p");
-    empty.className = "empty-text";
-    empty.textContent = "No properties matched this request.";
-    list.appendChild(empty);
-  }
-
   function appendNextPage() {
     results.slice(shown, shown + 24).forEach((p, offset) => {
       const index = shown + offset;
@@ -475,7 +468,7 @@ function openAdDetailsModal(option) {
     ["Land size", formatPerches(property.land_size_perches || ad.land_size_perches)],
     ["Price", ad.listing_type === "rent" ? `${formatMoney(ad.rent_monthly_lkr)} / month` : formatMoney(property.land_price_lkr ?? ad.sale_total_price_lkr)],
     ["Contact number", contactNumber],
-    ["Verified", ad.is_verified === undefined ? null : ad.is_verified ? "Yes" : "No"],
+    ["Source-data verification", ad.is_verified == null ? "Not recorded; not independently verified by PropWise" : ad.is_verified ? "Marked verified in source data; not independently verified by PropWise" : "Not marked verified in source data; not independently verified by PropWise"],
   ]
     .filter(([, value]) => value !== null && value !== undefined && value !== "")
     .forEach(([label, value]) => header.appendChild(summaryItem(label, value)));

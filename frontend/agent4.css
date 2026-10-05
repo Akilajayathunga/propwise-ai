@@ -23,3 +23,21 @@
   .recommendation-panel, .a4-card { padding: 14px; }
   .recommendation-panel .field-grid { grid-template-columns: 1fr; }
 }
+
+/* Progressive disclosure within the redesigned cards. */
+.decision-facts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 14px; font-size: 13px; }
+.decision-facts dt { font-weight: 600; }
+.decision-facts dd { margin: 0; overflow-wrap: anywhere; }
+.decision-support-details p, .decision-support-details li { font-size: 13px; }
+.query-form .a4-explanation-control { display: flex; align-items: center; gap: 8px; }
+.query-form .a4-explanation-control input { width: auto; margin: 0; flex: 0 0 auto; }
+@media (max-width: 480px) { .decision-facts { grid-template-columns: 1fr; } }
+
+body.plan-mode .owned-overview .decision-support-details { border-color: rgba(255,255,255,0.2); }
+body.plan-mode .owned-overview .decision-support-details summary { color: #f3c6a4; }
+body.plan-mode .owned-overview .decision-support-details ul { color: #e2eee5; }
+
+.assessment-coverage .decision-facts { grid-template-columns: repeat(3, auto minmax(0, 1fr)); gap: 8px 14px; }
+.assessment-coverage p { margin: 8px 0; font-size: 13px; }
+.decision-support-details .decision-facts { margin: 10px 0; gap: 5px 12px; }
+@media (max-width: 700px) { .assessment-coverage .decision-facts { grid-template-columns: auto 1fr; } }
