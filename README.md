@@ -12,17 +12,87 @@ Property search and home planning require users to connect scattered information
 - Plan a house concept and budget from land or construction requirements.
 - Evaluate combined land and house options with remaining budget constraints.
 
+## Project Idea and User Journey
+
+PropWise AI is a decision-support application, not an automated estate agent or
+architect. A user describes what they want in ordinary language, reviews any
+missing details, and receives property evidence, a conceptual home plan, or both.
+The system then explains the trade-offs behind its recommendations rather than
+presenting a single unexplained answer.
+
+For example, someone looking for land near Kottawa and a two-bedroom house can
+state a total project budget. PropWise AI identifies the requirements, searches
+available listings, estimates what could be built on suitable land, and compares
+the resulting options against the original budget. A user who already owns land
+can go straight to conceptual planning without a property search.
+
+The implemented request paths are:
+
+| User goal | Workflow | Result |
+| --- | --- | --- |
+| Find or compare property | Agent 1 -> Agent 2 -> Agent 4 | Relevant listings, comparisons, and recommendations |
+| Plan on owned land | Agent 1 -> Agent 3 -> Agent 4 | Conceptual plan, budget context, and owned-land assessment |
+| Buy land and build a house | Agent 1 -> Agent 2 -> Agent 3 -> Agent 4 | Land-and-house options assessed against the total budget |
+
 ## Four Agents
 
-- Agent 1: Requirement & Intent Understanding.
-- Agent 2: Property Search & Analysis.
-- Agent 3: Home Planning & Budget Estimation.
-- Agent 4: Recommendation & Decision Support.
+These agents are specialized backend components connected by direct Python calls.
+They do not represent four independent chatbots or a LangGraph workflow in the
+current demo.
 
-Agent 4 is implemented and accepted as **READY FOR FINAL DEMO**. Its deterministic
-Python engine owns eligibility, budget assessment, final scores/ranking, alternatives,
-comparisons, candidate coverage and owned-land assessment. Optional Gemini output
-only explains that decision; it cannot change it.
+### Agent 1: Requirement and Intent Understanding
+
+Agent 1 converts a natural-language request into structured requirements. It
+classifies the user's goal, extracts details such as location, transaction type,
+budget, land size, and rooms, then validates the result. The application can ask
+follow-up questions when information needed for a workflow is missing. The
+current parsing path is deterministic and does not make a live LLM call.
+
+**Concepts used:** rule-based intent classification, information extraction,
+structured schemas, validation, and clarification.
+
+### Agent 2: Property Search and Analysis
+
+Agent 2 searches the available property dataset using the structured request.
+It applies hard filters first, then scores and ranks matching listings by
+relevance. If the strict search is empty, it can retry with relaxed budget and
+bedroom constraints, explicitly warning that it did so. It also returns summary
+analysis of the matched properties. Listings are dataset records, not a
+guarantee of live availability or verified suitability.
+
+**Concepts used:** information retrieval, constraint filtering, relevance
+scoring, ranking, fallback search, and descriptive analysis.
+
+### Agent 3: Home Planning and Budget Estimation
+
+Agent 3 uses owned-land details or selected land evidence together with the
+requested rooms and budget. It analyses site dimensions, builds a room program,
+generates candidate layouts, checks constraints, and selects a scored conceptual
+plan. It estimates construction costs from configured assumptions and can
+produce plan JSON, SVG and PNG previews, a DXF drawing, and downloadable plan
+files. The output includes warnings where site fit or cost assumptions need
+verification.
+
+**Concepts used:** spatial constraints, room zoning and adjacency, candidate
+generation, layout optimization, budget estimation, and plan rendering.
+Generated plans and costs are preliminary, not approved construction documents
+or contractor quotations.
+
+### Agent 4: Recommendation and Decision Support
+
+Agent 4 combines the original requirements with server-obtained property and/or
+planning evidence. Its deterministic engine checks hard-constraint eligibility,
+assesses budget and planning evidence, ranks suitable options, and provides
+alternatives, comparisons, warnings, and coverage information. For owned land,
+it assesses the plan without inventing a property ranking. An optional LLM can
+write a grounded explanation, but it cannot change eligibility, scores, order,
+or the final decision; a deterministic explanation remains available as a
+fallback.
+
+**Concepts used:** multi-criteria decision support, eligibility checks,
+evidence-based ranking, explainability, provenance, and guarded LLM synthesis.
+
+Agent 4 is implemented and accepted as **READY FOR FINAL DEMO**.
 
 The accepted explanation configuration uses Gemini `gemini-3.1-flash-lite` and
 `propwise-agent4-explanation-v5`. Credentials remain in local configuration and must
@@ -38,6 +108,7 @@ tests passing**, with no failures. These are overlapping suites, not additive to
 The demo uses vanilla HTML/CSS/JavaScript, Python/FastAPI, existing property retrieval
 and conceptual planning services, and direct Agent 4 orchestration. LangGraph,
 Next.js, Supabase migration and pgvector are not required by the implemented Agent 4 flow.
+See the [frontend instructions](frontend/README.md) to run the browser interface.
 
 ## Historical Foundation Technology Plan
 
