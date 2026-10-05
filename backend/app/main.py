@@ -11,6 +11,15 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 PLANS_DIR = ROOT_DIR / "storage" / "plans"
 PLANS_DIR.mkdir(parents=True, exist_ok=True)
 
+
+class PlanStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope: dict):
+        response = await super().get_response(path, scope)
+        if Path(path).name == "all_floor_plans.zip" and response.status_code == 200:
+            response.headers["Content-Disposition"] = 'attachment; filename="all_floor_plans.zip"'
+        return response
+
+
 app = FastAPI(title=settings.project_name)
 app.add_middleware(
     CORSMiddleware,
@@ -23,4 +32,4 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(api_v1_router, prefix="/api/v1")
-app.mount("/plans", StaticFiles(directory=PLANS_DIR), name="plans")
+app.mount("/plans", PlanStaticFiles(directory=PLANS_DIR), name="plans")

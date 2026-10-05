@@ -1,5 +1,10 @@
+import io
+import zipfile
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
+from app.agents.agent4_recommendation.presentation import artifact_url
 from app.main import app
 
 client = TestClient(app)
@@ -31,6 +36,14 @@ def test_generate_planning_endpoint() -> None:
     assert body["files"]["png"]
     assert body["files"]["dxf"]
     assert body["files"]["zip"]
+
+    public_zip_url = artifact_url(body["files"]["zip"])
+    assert public_zip_url is not None
+    download = client.get(public_zip_url)
+    assert download.status_code == 200
+    assert download.headers["content-disposition"] == 'attachment; filename="all_floor_plans.zip"'
+    with zipfile.ZipFile(io.BytesIO(download.content)) as archive:
+        assert archive.namelist() == [Path(path).name for path in body["files"]["png"]]
 
 
 def test_evaluate_land_house_returns_combined_options_with_preserved_house_requirements() -> None:

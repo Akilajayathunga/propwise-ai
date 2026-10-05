@@ -811,11 +811,18 @@ function downloadLink(label, path) {
 }
 
 function fileDownloadButton(label, path, imageCount = null) {
-  const button = actionButton(label, () => downloadFile(path));
-  if (typeof path === "string" && path.toLowerCase().endsWith(".zip")) {
-    button.title = imageCount ? `ZIP containing ${imageCount} PNG floor image${imageCount === 1 ? "" : "s"}` : "ZIP containing all generated floor PNG images";
+  const url = firstPlanUrl(path);
+  if (url && typeof path === "string" && path.toLowerCase().endsWith(".zip")) {
+    const link = document.createElement("a");
+    link.className = "text-button";
+    link.href = url;
+    link.download = fileNameFromPath(path);
+    link.textContent = label;
+    link.title = imageCount ? `ZIP containing ${imageCount} PNG floor image${imageCount === 1 ? "" : "s"}` : "ZIP containing all generated floor PNG images";
+    return link;
   }
-  if (!firstPlanUrl(path)) {
+  const button = actionButton(label, () => downloadFile(path));
+  if (!url) {
     button.disabled = true;
     button.setAttribute("aria-disabled", "true");
   }
