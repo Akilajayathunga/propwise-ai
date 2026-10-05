@@ -165,7 +165,7 @@ async function runAgent4Smoke(sources, suppliedFixtures) {
     properties: [{ listing_id: explained.alternatives[0].listing_id, reason: injected, strengths: ["Explanation strength"], trade_offs: ["Explanation trade-off"] }],
     comparison_summary: ["Comparison evidence"], warnings: ["Explanation warning"], alternatives: ["Alternative explanation"], next_steps: ["Verify listing availability."], explanation_scope: "Bounded explanation scope" };
   window.Agent4UI.render(explained);
-  for (const value of [injected.replace("retrieval", "search").replace("upstream", "earlier"), "Grounded AI explanation", "A grounded score reason", "Comparison evidence", "Verify listing availability."])
+  for (const value of [injected.replace("retrieval", "search").replace("upstream", "earlier"), "Grounded AI explanation", "Comparison evidence", "Verify listing availability."])
     assert(panel.textContent.includes(value), "Explanation content preserved as text");
   assert(!walk(panel).some(x => x.tagName === "img"), "Injection-like explanation did not create markup");
   const polished = clone(fixtures.kottawa);
@@ -231,9 +231,62 @@ async function runAgent4Smoke(sources, suppliedFixtures) {
     fallback.explanation.top_recommendation_reason = reason;
     const before = JSON.stringify(fallback);
     window.Agent4UI.render(fallback);
-    assert(panel.textContent.includes("Top recommendation reason") && panel.textContent.includes(usefulReason), "Useful additional grounded reason retained");
+    assert(panel.textContent.includes("Why this is recommended") && panel.textContent.includes(usefulReason), "Useful additional grounded reason retained");
     assert(JSON.stringify(fallback) === before, "Useful fallback prose is not mutated");
   }
+  const friendly = clone(fixtures.kottawa);
+  const friendlyItem = friendly.recommendations[0];
+  friendlyItem.constraint_checks = [
+    { criterion: "budget", requirement: "Expected cost fits original budget", status: "SATISFIED" },
+    { criterion: "location", requirement: "location matches Kottawa", status: "SATISFIED" },
+    { criterion: "requirements", requirement: "bedrooms at least 3", status: "SATISFIED" },
+  ];
+  friendly.explanation = { source: "LLM", properties: [] };
+  const reasonSection = () => byClass(panel, "results-notes").find(detail => detail.children[0].textContent === "Why this is recommended");
+  for (const mode of ["LLM", "DETERMINISTIC_FALLBACK"]) {
+    friendly.explanation_status = mode;
+    friendly.explanation.source = mode;
+    for (const prose of ["Planning assessment: true.", "Site fit verified: false.", "Recorded eligibility: conditional.",
+      "Budget assessment: POTENTIALLY_FEASIBLE.", "Deterministic rank 1; decision-support index 88.91.",
+      "Recorded comparison: LKR -1,500,000.", "Recorded evidence: Expected cost fits original budget.",
+      "TOTAL_PROJECT", "SALE_TOTAL", "exact_site_fit_verified", "listing_type", "property_type", null]) {
+      friendly.explanation.top_recommendation_reason = prose;
+      const before = JSON.stringify(friendly);
+      window.Agent4UI.render(friendly);
+      const section = reasonSection();
+      assert(section && section.textContent.includes("expected project cost is within your LKR 40,000,000 budget"), "Machine or missing reason replaced with structured budget fact");
+      assert(section.textContent.includes("requested location matches") && section.textContent.includes("assessed room requirements are met"), "Confirmed checks support positive clauses");
+      assert(section.textContent.includes("high-cost estimate may exceed") && section.textContent.includes("exact site fit is not confirmed"), "Structured limitations retained");
+      assert(!/\b(?:true|false|TOTAL_PROJECT|HARD_CONSTRAINT_VIOLATION)\b|\d+(?:\.\d+)?e[+-]\d+|recorded |deterministic rank/i.test(section.textContent) && !section.textContent.includes(friendlyItem.listing_id), "Friendly reason has no machine values or candidate IDs");
+      assert(!panel.textContent.includes("Top recommendation reason") && panel.textContent.includes(mode === "LLM" ? "Grounded AI explanation" : "Deterministic fallback explanation"), "Friendly heading and response source transparency");
+      assert(JSON.stringify(friendly) === before, "Structured fallback cannot mutate API data");
+    }
+  }
+  const natural = "The expected project cost is within budget, but the high-cost estimate exceeds the budget and exact site fit is not confirmed.";
+  friendly.explanation_status = "LLM";
+  friendly.explanation.source = "LLM";
+  friendly.explanation.top_recommendation_reason = natural;
+  window.Agent4UI.render(friendly);
+  assert(reasonSection().textContent.includes(natural) && !reasonSection().textContent.includes("within your LKR"), "Useful Gemini prose preferred to structured template");
+  friendly.explanation.top_recommendation_reason = "Planning assessment: true.";
+  friendlyItem.constraint_checks[1].status = "VIOLATED";
+  friendlyItem.constraint_checks[2].status = "UNKNOWN";
+  friendlyItem.budget.status = "ABOVE_BUDGET"; // Deliberately contradict the lower numeric expected cost.
+  friendlyItem.planning.constraints_satisfied = false;
+  window.Agent4UI.render(friendly);
+  assert(!reasonSection().textContent.includes("is within your") && !reasonSection().textContent.includes("location matches") && !reasonSection().textContent.includes("requirements are met"), "Contradictory or unknown evidence cannot create positive claims");
+  friendlyItem.budget.status = "WITHIN_BUDGET";
+  friendlyItem.budget.total_project.expected_lkr = 50000000; // Opposite status/numeric contradiction.
+  window.Agent4UI.render(friendly);
+  assert(!reasonSection().textContent.includes("is within your"), "Contradictory within-budget enum does not override numeric evidence");
+  friendlyItem.planning.exact_site_fit_verified = true;
+  window.Agent4UI.render(friendly);
+  assert(!reasonSection().textContent.includes("site fit is not confirmed"), "True site-fit flag is not described as unconfirmed");
+  friendlyItem.budget = { basis: "TOTAL_PROJECT", status: "UNKNOWN", authoritative: false };
+  friendlyItem.planning = null;
+  friendlyItem.constraint_checks = [];
+  window.Agent4UI.render(friendly);
+  assert(!reasonSection(), "No usable structured facts means no invented reason");
   const rejected = clone(fixtures.kandy);
   rejected.explanation_status = "LLM";
   rejected.explanation = { source: "LLM", summary: "The supplied assessment is no suitable option.", properties: [] };

@@ -87,10 +87,60 @@
     );
   }
 
+  function machineProse(value) {
+    const raw = String(value || "").trim().replace(/[.!?]+$/, "");
+    const key = proseKey(raw);
+    // Complete field/value fragments and internal identifiers, not keyword matches
+    // inside ordinary sentences. Local API/guardrail validation remains unchanged.
+    return onlyVisibleMetadata(key)
+      || /^(?:[a-z][\w -]*\s*:\s*)?(?:true|false|null)$/i.test(raw)
+      || /^(?:[a-z][\w -]*\s*:\s*)?[A-Za-z]+(?:_[A-Za-z]+)+$/.test(raw)
+      || (/^(?:recorded|internal|debug) [\w -]+\s*:/i.test(raw) && !/\b(?:but|although|because|however|while|and)\b/i.test(raw))
+      || /^[A-Z]+(?:_[A-Z]+)*$/.test(raw);
+  }
+
+  function structuredReason(item) {
+    if (!item || !["ELIGIBLE", "CONDITIONAL"].includes(item.eligibility)) return "";
+    const checks = item.constraint_checks || [];
+    const budget = item.budget || {};
+    const planning = item.planning;
+    const positives = [], limits = [];
+    const moneyKnown = value => typeof value === "number" && Number.isFinite(value);
+    const expected = budget.basis === "TOTAL_PROJECT" ? budget.total_project?.expected_lkr
+      : budget.basis === "CONSTRUCTION" ? budget.construction?.expected_lkr : budget.price_lkr;
+    const costLabel = budget.basis === "TOTAL_PROJECT" ? "the expected project cost"
+      : budget.basis === "CONSTRUCTION" ? "the expected construction cost"
+      : budget.basis === "MONTHLY_RENT" ? "the monthly rent" : "the property price";
+    const budgetChecks = checks.filter(check => check.criterion === "budget");
+    const usableBudget = budget.authoritative === true && moneyKnown(expected) && moneyKnown(budget.budget_lkr);
+    if (usableBudget && expected <= budget.budget_lkr
+      && ["WITHIN_BUDGET", "POTENTIALLY_FEASIBLE", "TIGHT_BUDGET"].includes(budget.status)
+      && budgetChecks.every(check => check.status === "SATISFIED")) {
+      positives.push(`${costLabel} is within your ${formatMoney(budget.budget_lkr)} budget`);
+    }
+    if (budget.status === "ABOVE_BUDGET" || (usableBudget && expected > budget.budget_lkr)) {
+      limits.push("the budget assessment flags an over-budget cost");
+    } else {
+      const high = (budget.total_project || budget.construction)?.high_lkr;
+      if (budget.authoritative === true && moneyKnown(high) && moneyKnown(budget.budget_lkr) && high > budget.budget_lkr)
+        limits.push("the high-cost estimate may exceed your budget");
+    }
+    const location = checks.filter(check => /^location matches /i.test(check.requirement));
+    if (location.length && location.every(check => check.status === "SATISFIED")) positives.push("the requested location matches");
+    else if (location.some(check => check.status === "VIOLATED")) limits.push("the requested location is not met");
+    const rooms = checks.filter(check => /^(?:bedrooms|bathrooms|floors) at least /i.test(check.requirement));
+    if (rooms.length && rooms.every(check => check.status === "SATISFIED") && (!planning || planning.constraints_satisfied === true))
+      positives.push("the assessed room requirements are met");
+    if (planning?.constraints_satisfied === false) limits.push("the conceptual layout does not satisfy the planning constraints");
+    if (planning && planning.exact_site_fit_verified !== true) limits.push("exact site fit is not confirmed");
+    const sentence = clauses => clauses.length ? sentenceCase(clauses.join(" and ")) + "." : "";
+    return [sentence(positives.slice(0, 3)), sentence(limits.slice(0, 2))].filter(Boolean).join(" ");
+  }
+
   function usefulProse(value, visible = []) {
     const known = new Set(visible.map(proseKey));
-    const text = concise(value);
-    return text.split(/(?<=[.!?])\s+/).map(sentence => sentence.trim()).filter(sentence => {
+    const text = String(value || "").replace(/\.{2,}(?=\s|$)/g, ".");
+    return text.split(/(?<=[.!?])\s+/).filter(sentence => !machineProse(sentence)).map(concise).filter(Boolean).slice(0, 2).filter(sentence => {
       const key = proseKey(sentence);
       if (known.has(key)) return false;
       if (onlyVisibleMetadata(key)) return false;
@@ -470,8 +520,13 @@
       DETERMINISTIC: "Deterministic assessment", LLM: "Grounded AI explanation",
       DETERMINISTIC_FALLBACK: "Deterministic fallback explanation",
     }[source] || "Explanation source not provided"), "results-context"));
+    const top = response.recommendations?.[0];
+    if (top) {
+      const reason = usefulProse(explanation?.top_recommendation_reason,
+        [...keyStrengths(top), ...(top.trade_offs || [])]) || structuredReason(top);
+      noteList(root, "Why this is recommended", [reason]);
+    }
     if (explanation) {
-      if (explanation.top_recommendation_reason) noteList(root, "Top recommendation reason", [usefulProse(explanation.top_recommendation_reason, candidates.flatMap(item => [...keyStrengths(item), ...(item.trade_offs || [])]))]);
       noteList(root, "Comparison explanation", (explanation.comparison_summary || []).map(value => usefulComparison(value, response.comparisons)).filter(Boolean).slice(0, 2));
       noteList(root, "Next steps", actionSteps(explanation.next_steps));
     }
