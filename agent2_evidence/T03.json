@@ -1,0 +1,147 @@
+{
+  "test_id": "T03",
+  "objective": "",
+  "input": {
+    "original_query": "rent apartment in Colombo under 150000",
+    "intent": "RENT_PROPERTY",
+    "location": "Colombo",
+    "listing_type": "rent",
+    "property_type": "apartment",
+    "maximum_budget_lkr": 150000
+  },
+  "expected_result": "NOT VERIFIED",
+  "actual_result": {
+    "results": [
+      {
+        "listing_id": "for-rent-for-rent-puttalam-54",
+        "title": "Apartment for Rent Rathmalyaya",
+        "description": "2 Story #shop Space Available #for #Rent ✓Groud Floor Full Tiles ✓ Separate Electricity ✓Water Facility ✓2 Bathrooms ✓vehicle Parking #puttalam Colombo Road #rath...",
+        "district": "Puttalam",
+        "location": "Puttalam City",
+        "address": "Colombo Road Rathmalyaya",
+        "contact_number": "Not mentioned in ad",
+        "listing_type": "rent",
+        "property_type": "apartment",
+        "price_lkr": 18000.0,
+        "price_basis": "per_month",
+        "rent_monthly_lkr": 18000.0,
+        "bedrooms": 3.0,
+        "bathrooms": 2.0,
+        "property_size_sqft": 700.0,
+        "is_verified": false,
+        "posted_date": "2023-02-17",
+        "geo_region": "LK-62",
+        "membership_level": "free",
+        "score": 0.785,
+        "score_breakdown": {
+          "budget_fit": 0.22,
+          "location": 0.4,
+          "bedrooms": 0.075,
+          "verified": 0.0,
+          "size_fit": 0.05,
+          "recency": 0.04
+        }
+      },
+      {
+        "listing_id": "apartment-for-rent-in-colombo-06-for-rent-colombo-763",
+        "title": "Apartment For Rent In Colombo 06",
+        "description": "New Apartment For Rent In Wellawatta - Alexandra road 1360 Square feet 3 Bedroom 2 Bathroom Sea view Swimmng pool Gym Parking slot 24/7 Security service Close to Galle...",
+        "district": "Colombo",
+        "location": "Colombo 6",
+        "address": "Colombo 06 - Alexandra road",
+        "contact_number": "Not mentioned in ad",
+        "listing_type": "rent",
+        "property_type": "apartment",
+        "price_lkr": 115000.0,
+        "price_basis": "per_month",
+        "rent_monthly_lkr": 115000.0,
+        "bedrooms": 3.0,
+        "bathrooms": 2.0,
+        "property_size_sqft": 1360.0,
+        "is_verified": false,
+        "posted_date": "2023-02-12",
+        "geo_region": "LK-11",
+        "membership_level": "premium",
+        "score": 0.5833,
+        "score_breakdown": {
+          "budget_fit": 0.0583,
+          "location": 0.4,
+          "bedrooms": 0.075,
+          "verified": 0.0,
+          "size_fit": 0.05,
+          "recency": 0.0
+        }
+      }
+    ],
+    "total_found": 2,
+    "returned": 2,
+    "relaxed_filters": false,
+    "filters_applied": {
+      "listing_type": "rent",
+      "property_type": "apartment",
+      "location": "Colombo",
+      "district": null,
+      "max_budget_lkr": 150000,
+      "max_land_budget_lkr": null,
+      "total_project_budget_lkr": null,
+      "min_budget_lkr": null,
+      "bedrooms_min": null,
+      "land_size_perches_min": null,
+      "land_size_perches_max": null,
+      "house_size_sqft_min": null,
+      "relaxed": false
+    },
+    "analysis": {
+      "price_stats": {
+        "min_price": 18000.0,
+        "max_price": 115000.0,
+        "median_price": 66500.0,
+        "mean_price": 66500.0,
+        "count": 2
+      },
+      "budget_fit_pct": 100.0,
+      "district_breakdown": {
+        "Colombo": 1,
+        "Puttalam": 1
+      },
+      "verified_count": 0,
+      "property_type_breakdown": {
+        "apartment": 2
+      }
+    },
+    "warnings": [],
+    "metadata": {
+      "dataset_size": 500,
+      "top_n_requested": 100
+    }
+  },
+  "number_of_results": 2,
+  "top_3_scores": [
+    {
+      "listing_id": "for-rent-for-rent-puttalam-54",
+      "score": 0.785,
+      "score_breakdown": {
+        "budget_fit": 0.22,
+        "location": 0.4,
+        "bedrooms": 0.075,
+        "verified": 0.0,
+        "size_fit": 0.05,
+        "recency": 0.04
+      }
+    },
+    {
+      "listing_id": "apartment-for-rent-in-colombo-06-for-rent-colombo-763",
+      "score": 0.5833,
+      "score_breakdown": {
+        "budget_fit": 0.0583,
+        "location": 0.4,
+        "bedrooms": 0.075,
+        "verified": 0.0,
+        "size_fit": 0.05,
+        "recency": 0.0
+      }
+    }
+  ],
+  "relaxed_filters": false,
+  "warnings": []
+}

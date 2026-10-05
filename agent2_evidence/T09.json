@@ -1,0 +1,85 @@
+{
+  "test_id": "T09",
+  "objective": "",
+  "input": {
+    "original_query": "missing values query",
+    "intent": "BUY_PROPERTY",
+    "location": null,
+    "listing_type": "sale",
+    "property_type": "house",
+    "maximum_budget_lkr": null,
+    "bedrooms": null
+  },
+  "expected_result": "NOT VERIFIED",
+  "actual_result": {
+    "results": [],
+    "total_found": 116,
+    "returned": 0,
+    "relaxed_filters": false,
+    "filters_applied": {
+      "listing_type": "sale",
+      "property_type": "house",
+      "location": null,
+      "district": null,
+      "max_budget_lkr": null,
+      "max_land_budget_lkr": null,
+      "total_project_budget_lkr": null,
+      "min_budget_lkr": null,
+      "bedrooms_min": null,
+      "land_size_perches_min": null,
+      "land_size_perches_max": null,
+      "house_size_sqft_min": null,
+      "relaxed": false
+    },
+    "analysis": {
+      "price_stats": {
+        "min_price": 1300000.0,
+        "max_price": 200000000.0,
+        "median_price": 27000000.0,
+        "mean_price": 34182219.83,
+        "count": 116
+      },
+      "budget_fit_pct": 100.0,
+      "district_breakdown": {
+        "Colombo": 80,
+        "Gampaha": 13,
+        "Kilinochchi": 1,
+        "Matara": 1,
+        "Ampara": 1,
+        "Jaffna": 1,
+        "Monaragala": 1,
+        "Batticaloa": 1,
+        "Kandy": 1,
+        "Puttalam": 1,
+        "Vavuniya": 1,
+        "Mullativu": 1,
+        "Ratnapura": 1,
+        "Mannar": 1,
+        "Kalutara": 1,
+        "Polonnaruwa": 1,
+        "Kurunegala": 1,
+        "Hambantota": 1,
+        "Nuwara Eliya": 1,
+        "Kegalle": 1,
+        "Badulla": 1,
+        "Matale": 1,
+        "Trincomalee": 1,
+        "Anuradhapura": 1,
+        "Galle": 1
+      },
+      "verified_count": 70,
+      "property_type_breakdown": {
+        "house": 116
+      }
+    },
+    "warnings": [],
+    "metadata": {
+      "dataset_size": 500,
+      "top_n_requested": 100
+    }
+  },
+  "number_of_results": 0,
+  "top_3_scores": [],
+  "relaxed_filters": false,
+  "warnings": []
+}

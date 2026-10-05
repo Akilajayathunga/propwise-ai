@@ -1,0 +1,148 @@
+{
+  "test_id": "T06",
+  "objective": "",
+  "input": {
+    "original_query": "broad Colombo sale house",
+    "intent": "BUY_PROPERTY",
+    "location": "Colombo",
+    "listing_type": "sale",
+    "property_type": "house",
+    "maximum_budget_lkr": 100000000
+  },
+  "expected_result": "NOT VERIFIED",
+  "actual_result": {
+    "results": [
+      {
+        "listing_id": "hosing-sale-for-sale-colombo",
+        "title": "House For Sale in Colombo 8",
+        "description": "good. condition Colombo 8",
+        "district": "Colombo",
+        "location": "Colombo 8",
+        "address": "Colombo 8",
+        "contact_number": "Not mentioned in ad",
+        "listing_type": "sale",
+        "property_type": "house",
+        "price_lkr": 7000000.0,
+        "price_basis": "total",
+        "sale_total_price_lkr": 7000000.0,
+        "bedrooms": 2.0,
+        "bathrooms": 1.0,
+        "land_size_perches": 2.0,
+        "house_size_sqft": 1000.0,
+        "is_verified": false,
+        "posted_date": "2023-03-17",
+        "geo_region": "LK-11",
+        "membership_level": "free",
+        "score": 0.7969,
+        "score_breakdown": {
+          "budget_fit": 0.2325,
+          "location": 0.4,
+          "bedrooms": 0.075,
+          "verified": 0.0,
+          "size_fit": 0.05,
+          "recency": 0.0394
+        }
+      },
+      {
+        "listing_id": "luxury-two-storey-house-for-sale-for-sale-colombo-66",
+        "title": "luxury two storey house for sale",
+        "description": "3 houses for sale 1 house 3 bedrooms and 3 bathrooms. Leving. Dinning areas. KITCHEN and Pantry 1 carpark and ground Floor Garden and Rooftop. Storage and water tan...",
+        "district": "Colombo",
+        "location": "Colombo 8",
+        "address": "kuruppu road colombo 8",
+        "contact_number": "Not mentioned in ad",
+        "listing_type": "sale",
+        "property_type": "house",
+        "price_lkr": 98000000.0,
+        "price_basis": "total",
+        "sale_total_price_lkr": 98000000.0,
+        "bedrooms": 5.0,
+        "bathrooms": 4.0,
+        "land_size_perches": 8.0,
+        "house_size_sqft": 5000.0,
+        "is_verified": false,
+        "posted_date": "2023-03-19",
+        "geo_region": "LK-11",
+        "membership_level": "premium",
+        "score": 0.57,
+        "score_breakdown": {
+          "budget_fit": 0.005,
+          "location": 0.4,
+          "bedrooms": 0.075,
+          "verified": 0.0,
+          "size_fit": 0.05,
+          "recency": 0.04
+        }
+      }
+    ],
+    "total_found": 76,
+    "returned": 2,
+    "relaxed_filters": false,
+    "filters_applied": {
+      "listing_type": "sale",
+      "property_type": "house",
+      "location": "Colombo",
+      "district": null,
+      "max_budget_lkr": 100000000,
+      "max_land_budget_lkr": null,
+      "total_project_budget_lkr": null,
+      "min_budget_lkr": null,
+      "bedrooms_min": null,
+      "land_size_perches_min": null,
+      "land_size_perches_max": null,
+      "house_size_sqft_min": null,
+      "relaxed": false
+    },
+    "analysis": {
+      "price_stats": {
+        "min_price": 4700000.0,
+        "max_price": 98000000.0,
+        "median_price": 30000000.0,
+        "mean_price": 36032072.37,
+        "count": 76
+      },
+      "budget_fit_pct": 100.0,
+      "district_breakdown": {
+        "Colombo": 76
+      },
+      "verified_count": 57,
+      "property_type_breakdown": {
+        "house": 76
+      }
+    },
+    "warnings": [],
+    "metadata": {
+      "dataset_size": 500,
+      "top_n_requested": 100
+    }
+  },
+  "number_of_results": 2,
+  "top_3_scores": [
+    {
+      "listing_id": "hosing-sale-for-sale-colombo",
+      "score": 0.7969,
+      "score_breakdown": {
+        "budget_fit": 0.2325,
+        "location": 0.4,
+        "bedrooms": 0.075,
+        "verified": 0.0,
+        "size_fit": 0.05,
+        "recency": 0.0394
+      }
+    },
+    {
+      "listing_id": "luxury-two-storey-house-for-sale-for-sale-colombo-66",
+      "score": 0.57,
+      "score_breakdown": {
+        "budget_fit": 0.005,
+        "location": 0.4,
+        "bedrooms": 0.075,
+        "verified": 0.0,
+        "size_fit": 0.05,
+        "recency": 0.04
+      }
+    }
+  ],
+  "relaxed_filters": false,
+  "warnings": []
+}

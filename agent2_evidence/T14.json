@@ -1,0 +1,149 @@
+{
+  "test_id": "T14",
+  "objective": "",
+  "input": {
+    "original_query": "recency query",
+    "intent": "BUY_PROPERTY",
+    "location": "Colombo",
+    "listing_type": "sale",
+    "property_type": "house",
+    "maximum_budget_lkr": 100000000,
+    "bedrooms": 3
+  },
+  "expected_result": "NOT VERIFIED",
+  "actual_result": {
+    "results": [
+      {
+        "listing_id": "pr743beautiful-valuable-house-sale-in-athurugiriya-for-sale-colombo-1",
+        "title": "(PR743)Beautiful Valuable House sale in Athurugiriya",
+        "description": "(PR743)Beautiful Valuable House sale in Athurugiriya, Megoda, Godagama 20Ft Road Highly Residential and clam area. * 3 Bedrooms * 2 Bathrooms * 6.5 Perches * 1200...",
+        "district": "Colombo",
+        "location": "Athurugiriya",
+        "address": "Athurugiriya, Megoda, Godagama",
+        "contact_number": "Not mentioned in ad",
+        "listing_type": "sale",
+        "property_type": "house",
+        "price_lkr": 12500000.0,
+        "price_basis": "total",
+        "sale_total_price_lkr": 12500000.0,
+        "bedrooms": 3.0,
+        "bathrooms": 2.0,
+        "land_size_perches": 6.5,
+        "house_size_sqft": 1200.0,
+        "is_verified": true,
+        "posted_date": "2023-02-18",
+        "geo_region": "LK-11",
+        "membership_level": "premium",
+        "score": 0.5106,
+        "score_breakdown": {
+          "budget_fit": 0.2188,
+          "location": 0.0,
+          "bedrooms": 0.15,
+          "verified": 0.06,
+          "size_fit": 0.05,
+          "recency": 0.0319
+        }
+      },
+      {
+        "listing_id": "pr629valuble-house-for-sale-in-hokandara-for-sale-colombo",
+        "title": "(PR629)Valuble House For Sale In Hokandara",
+        "description": "(PR629)VALUBLE House For Sale In Hokandara Horahena HIGHLY RESIDENTIAL AREA facing 20ft road 👉 5.8 Perches 👉 1500 .0 Sq Ft 👉 3 Bedrooms 👉 2 Bathrooms (1 attach...",
+        "district": "Colombo",
+        "location": "Athurugiriya",
+        "address": "Hokandara Horahena",
+        "contact_number": "Not mentioned in ad",
+        "listing_type": "sale",
+        "property_type": "house",
+        "price_lkr": 13500000.0,
+        "price_basis": "total",
+        "sale_total_price_lkr": 13500000.0,
+        "bedrooms": 3.0,
+        "bathrooms": 2.0,
+        "land_size_perches": 5.8,
+        "house_size_sqft": 1500.0,
+        "is_verified": true,
+        "posted_date": "2023-02-15",
+        "geo_region": "LK-11",
+        "membership_level": "premium",
+        "score": 0.5073,
+        "score_breakdown": {
+          "budget_fit": 0.2162,
+          "location": 0.0,
+          "bedrooms": 0.15,
+          "verified": 0.06,
+          "size_fit": 0.05,
+          "recency": 0.031
+        }
+      }
+    ],
+    "total_found": 72,
+    "returned": 2,
+    "relaxed_filters": false,
+    "filters_applied": {
+      "listing_type": "sale",
+      "property_type": "house",
+      "location": "Colombo",
+      "district": null,
+      "max_budget_lkr": 100000000,
+      "max_land_budget_lkr": null,
+      "total_project_budget_lkr": null,
+      "min_budget_lkr": null,
+      "bedrooms_min": 3,
+      "land_size_perches_min": null,
+      "land_size_perches_max": null,
+      "house_size_sqft_min": null,
+      "relaxed": false
+    },
+    "analysis": {
+      "price_stats": {
+        "min_price": 4700000.0,
+        "max_price": 98000000.0,
+        "median_price": 31000000.0,
+        "mean_price": 37550520.83,
+        "count": 72
+      },
+      "budget_fit_pct": 100.0,
+      "district_breakdown": {
+        "Colombo": 72
+      },
+      "verified_count": 54,
+      "property_type_breakdown": {
+        "house": 72
+      }
+    },
+    "warnings": [],
+    "metadata": {
+      "dataset_size": 500,
+      "top_n_requested": 100
+    }
+  },
+  "number_of_results": 2,
+  "top_3_scores": [
+    {
+      "listing_id": "pr743beautiful-valuable-house-sale-in-athurugiriya-for-sale-colombo-1",
+      "score": 0.5106,
+      "score_breakdown": {
+        "budget_fit": 0.2188,
+        "location": 0.0,
+        "bedrooms": 0.15,
+        "verified": 0.06,
+        "size_fit": 0.05,
+        "recency": 0.0319
+      }
+    },
+    {
+      "listing_id": "pr629valuble-house-for-sale-in-hokandara-for-sale-colombo",
+      "score": 0.5073,
+      "score_breakdown": {
+        "budget_fit": 0.2162,
+        "location": 0.0,
+        "bedrooms": 0.15,
+        "verified": 0.06,
+        "size_fit": 0.05,
+        "recency": 0.031
+      }
+    }
+  ],
+  "relaxed_filters": false,
+  "warnings": []
+}

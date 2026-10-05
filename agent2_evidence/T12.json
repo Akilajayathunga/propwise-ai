@@ -1,0 +1,60 @@
+{
+  "test_id": "T12",
+  "objective": "",
+  "input": {
+    "original_query": "negative values",
+    "intent": "BUY_PROPERTY",
+    "location": "Colombo",
+    "listing_type": "sale",
+    "property_type": "house",
+    "maximum_budget_lkr": -1,
+    "bedrooms": -1
+  },
+  "expected_result": "NOT VERIFIED",
+  "actual_result": {
+    "results": [],
+    "total_found": 0,
+    "returned": 0,
+    "relaxed_filters": true,
+    "filters_applied": {
+      "listing_type": "sale",
+      "property_type": "house",
+      "location": "Colombo",
+      "district": null,
+      "max_budget_lkr": -1,
+      "max_land_budget_lkr": null,
+      "total_project_budget_lkr": null,
+      "min_budget_lkr": null,
+      "bedrooms_min": null,
+      "land_size_perches_min": null,
+      "land_size_perches_max": null,
+      "house_size_sqft_min": null,
+      "relaxed": true
+    },
+    "analysis": {
+      "price_stats": {
+        "min_price": null,
+        "max_price": null,
+        "median_price": null,
+        "mean_price": null,
+        "count": 0
+      },
+      "budget_fit_pct": 0.0,
+      "district_breakdown": {},
+      "verified_count": 0,
+      "property_type_breakdown": {}
+    },
+    "warnings": [
+      "No properties matched. Consider broadening location or budget constraints."
+    ],
+    "metadata": {
+      "dataset_size": 500
+    }
+  },
+  "number_of_results": 0,
+  "top_3_scores": [],
+  "relaxed_filters": true,
+  "warnings": [
+    "No properties matched. Consider broadening location or budget constraints."
+  ]
+}

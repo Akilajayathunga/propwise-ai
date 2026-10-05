@@ -1,0 +1,60 @@
+{
+  "test_id": "T02d",
+  "objective": "",
+  "input": {
+    "original_query": "3 bedroom house in malabe city under 20 million",
+    "intent": "BUY_PROPERTY",
+    "location": "malabe city",
+    "listing_type": "sale",
+    "property_type": "house",
+    "maximum_budget_lkr": 20000000,
+    "bedrooms": 3
+  },
+  "expected_result": "NOT VERIFIED",
+  "actual_result": {
+    "results": [],
+    "total_found": 0,
+    "returned": 0,
+    "relaxed_filters": true,
+    "filters_applied": {
+      "listing_type": "sale",
+      "property_type": "house",
+      "location": "malabe city",
+      "district": null,
+      "max_budget_lkr": 24000000,
+      "max_land_budget_lkr": null,
+      "total_project_budget_lkr": null,
+      "min_budget_lkr": null,
+      "bedrooms_min": null,
+      "land_size_perches_min": null,
+      "land_size_perches_max": null,
+      "house_size_sqft_min": null,
+      "relaxed": true
+    },
+    "analysis": {
+      "price_stats": {
+        "min_price": null,
+        "max_price": null,
+        "median_price": null,
+        "mean_price": null,
+        "count": 0
+      },
+      "budget_fit_pct": 0.0,
+      "district_breakdown": {},
+      "verified_count": 0,
+      "property_type_breakdown": {}
+    },
+    "warnings": [
+      "No properties matched. Consider broadening location or budget constraints."
+    ],
+    "metadata": {
+      "dataset_size": 500
+    }
+  },
+  "number_of_results": 0,
+  "top_3_scores": [],
+  "relaxed_filters": true,
+  "warnings": [
+    "No properties matched. Consider broadening location or budget constraints."
+  ]
+}
