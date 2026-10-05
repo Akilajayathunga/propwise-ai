@@ -18,8 +18,9 @@ def test_budget_report_keeps_data_and_downloads_in_styled_document(tmp_path):
     html = report.read_text(encoding="utf-8")
     assert '<meta name="viewport" content="width=device-width, initial-scale=1"' in html
     assert "background: #dce9df" in html
-    assert "background: #f6d9c2" in html
-    assert "background: #dce8bd" in html
+    assert "background: #167780" in html
+    assert "background: #f5ad83" in html
+    assert "background: #c7e388" in html
     assert "Your project budget" in html
     assert "Rs. 33,368,700" in html
     assert "Land &lt;Kottawa&gt;" in html

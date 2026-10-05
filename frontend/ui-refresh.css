@@ -92,13 +92,13 @@ body.has-results .results-shell { display: block; }
 .results-notes ul { max-width: 950px; margin-bottom: 0; color: var(--muted); }
 
 .pick-grid, .property-list, .option-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 17px; align-items: stretch; margin-top: 20px; }
-.pick-card, .property-card, .option-card { display: flex; flex-direction: column; min-width: 0; padding: 21px; border: 1px solid #d8e3db; border-radius: 7px; background: white; box-shadow: 0 9px 27px rgba(24, 54, 39, 0.045); }
+.pick-card, .property-card, .option-card { display: flex; flex-direction: column; min-width: 0; padding: 21px; border: 1px solid #a7cdb6; border-radius: 7px; background: #d5eadc; box-shadow: 0 10px 26px rgba(24, 54, 39, 0.08); }
 .pick-card:first-child { border-color: #a6c8b3; box-shadow: 0 18px 40px rgba(24, 54, 39, 0.09); }
 .pick-topline, .property-topline, .option-topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 17px; }
 .pick-label, .property-topline span, .match-badge { color: var(--accent-dark); font-size: 10px; font-weight: 850; text-transform: uppercase; }
 .pick-condition { color: #975634; font-size: 11px; font-weight: 750; }
 .pick-card h3, .property-card h3, .option-card h3 { margin: 0 0 9px; color: var(--ink); font-size: 19px; line-height: 1.32; font-weight: 750; overflow-wrap: anywhere; }
-.pick-meta { margin: 0 0 17px; color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.pick-meta { margin: 0 0 17px; color: #415e50; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .pick-plan-preview { display: block; width: 100%; height: 185px; margin: -4px 0 17px; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 5px; background: #f7f8f4; cursor: pointer; }
 .pick-plan-preview img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .pick-price { display: flex; flex-direction: column; gap: 3px; margin: 0 0 11px; padding: 11px 0 0; border-top: 1px solid var(--line); }
@@ -135,7 +135,7 @@ body.has-results .results-shell { display: block; }
 .property-card .property-topline { margin: 0 0 3px; }
 .property-card h3 { font-size: 17px; }
 .property-card .property-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
-.property-card .property-meta span { padding: 4px 7px; border: 1px solid #e3eae3; border-radius: 4px; background: #f7f9f7; color: #5e7165; font-size: 11px; line-height: 1.35; }
+.property-card .property-meta span { padding: 4px 7px; border: 1px solid #b7cfba; border-radius: 4px; background: #e9f3e9; color: #375445; font-size: 11px; line-height: 1.35; }
 .property-price { margin-top: auto; padding-top: 12px; color: var(--accent-dark); font-size: 21px; font-weight: 750; }
 .property-card .option-actions { padding-top: 13px; border-top: 1px solid var(--line); }
 .market-analysis { margin: 0 0 20px; padding: 10px 14px; border-left: 3px solid var(--accent); border-radius: 3px; background: #eaf3ed; color: #3e604f; font-size: 13px; }
@@ -149,9 +149,11 @@ body:not(.plan-mode) .recommendation-panel {
 }
 body:not(.plan-mode) .recommendation-panel .result-header { margin-bottom: 28px; }
 body:not(.plan-mode) .recommendation-panel .result-header h2 { font-size: 42px; }
-body:not(.plan-mode) .recommendation-panel .result-count { flex-shrink: 0; border: 0; background: #cee2d3; font-size: 13px; white-space: nowrap; }
+body:not(.plan-mode) .recommendation-panel .result-count { flex-shrink: 0; border: 0; background: #f1c8a9; color: #563723; font-size: 13px; white-space: nowrap; }
 body:not(.plan-mode) .pick-grid { gap: 18px; margin-top: 22px; }
-body:not(.plan-mode) .pick-card { padding: 26px; border-color: #cfded3; background: #fbfdfb; box-shadow: 0 14px 30px rgba(21, 54, 42, 0.06); }
+body:not(.plan-mode) .pick-card { padding: 26px; border-color: #a7cdb6; background: #d1e9db; box-shadow: 0 14px 30px rgba(21, 54, 42, 0.09); }
+body:not(.plan-mode) .pick-card:nth-child(3n + 2) { border-color: #e1b699; background: #f4d5bd; }
+body:not(.plan-mode) .pick-card:nth-child(3n + 3) { border-color: #b6c988; background: #dce8b7; }
 body:not(.plan-mode) .pick-card h3 { font-size: 22px; line-height: 1.24; }
 body:not(.plan-mode) .pick-meta { margin-bottom: 16px; font-size: 13px; }
 .pick-facts { display: flex; flex-wrap: wrap; gap: 6px 13px; margin: 0 0 17px; color: #496658; font-size: 12px; font-weight: 700; }
@@ -199,23 +201,24 @@ body:not(.plan-mode) .pick-actions .text-button { min-height: 40px; padding: 9px
 body:not(.plan-mode) .properties-panel {
   padding: clamp(38px, 4vw, 68px) clamp(20px, 4.5vw, 88px) clamp(56px, 5vw, 90px);
   border-top: 0;
-  background: #f8faf8;
+  background: #e9f0e9;
 }
 body:not(.plan-mode) .properties-panel .result-header h2 { font-size: 36px; }
-body:not(.plan-mode) .property-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 clamp(24px, 4vw, 70px); margin-top: 16px; }
+body:not(.plan-mode) .property-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; margin-top: 16px; }
 body:not(.plan-mode) .property-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-content: start;
   gap: 8px 20px;
-  min-height: 164px;
-  padding: 24px 0;
-  border: 0;
-  border-top: 1px solid #d2ded4;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  min-height: 170px;
+  padding: 22px;
+  border: 1px solid #abcdbc;
+  border-left: 5px solid #2e7c65;
+  border-radius: 6px;
+  background: #d6eadc;
+  box-shadow: 0 8px 20px rgba(25, 68, 47, 0.06);
 }
+body:not(.plan-mode) .property-card:nth-child(even) { border-color: #deb394; border-left-color: #ba6b46; background: #f5dbc7; }
 body:not(.plan-mode) .property-card .property-topline { grid-column: 1 / -1; margin: 0; }
 body:not(.plan-mode) .property-card h3 { grid-column: 1; margin: 0; font-size: 20px; }
 body:not(.plan-mode) .property-card .property-meta { grid-column: 1; }
@@ -224,7 +227,9 @@ body:not(.plan-mode) .property-card .property-price { grid-column: 2; grid-row: 
 body:not(.plan-mode) .property-card .option-actions { grid-column: 1 / -1; margin-top: 4px; padding: 0; border: 0; }
 body:not(.plan-mode) .market-analysis { max-width: 100%; margin: 0 0 18px; padding: 10px 14px; border-color: #ce825f; background: #edf3ee; }
 
-.option-card { display: grid; gap: 11px; align-content: start; }
+.option-card { display: grid; gap: 11px; align-content: start; background: #d3e8db; }
+.option-card:nth-child(3n + 2) { border-color: #ddb297; background: #f3d9c4; }
+.option-card:nth-child(3n + 3) { border-color: #b3ca91; background: #deebc2; }
 .option-card .plan-preview { min-height: 230px; border-radius: 5px; background: #f6f8f5; }
 .option-card .plan-preview img { min-height: 230px; }
 .option-card .option-actions { align-self: end; }
@@ -298,8 +303,10 @@ body.plan-mode .owned-overview .text-button:first-child:hover:not(:disabled) { b
 body.plan-mode .planning-panel { min-width: 0; margin: 0; padding: 0; border: 0; }
 body.plan-mode .planning-panel .result-header { margin-bottom: 16px; }
 body.plan-mode .planning-panel .result-header h2 { font-size: 36px; }
-body.plan-mode .planning-panel .field-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 20px; margin: 4px 0 24px; }
-body.plan-mode .planning-panel .field-item { min-height: 72px; padding: 13px 0; }
+body.plan-mode .planning-panel .field-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 4px 0 24px; }
+body.plan-mode .planning-panel .field-item { min-height: 82px; padding: 13px 15px; border: 1px solid #afd0bc; border-radius: 5px; background: #d5eadc; }
+body.plan-mode .planning-panel .field-item:nth-child(3n + 2) { border-color: #e2b99b; background: #f3dcc8; }
+body.plan-mode .planning-panel .field-item:nth-child(3n + 3) { border-color: #bdcd99; background: #dce9be; }
 body.plan-mode .planning-panel .field-item strong { font-size: 16px; }
 body.plan-mode .planning-panel .plan-notice { margin-bottom: 18px; padding: 11px 13px; border-left: 3px solid #d27e56; background: #fff4eb; color: #864c33; font-weight: 600; }
 body.plan-mode .floor-tabs { display: inline-flex; gap: 3px; margin: 5px 0 16px; padding: 4px; border-radius: 6px; background: #dbe5de; }
@@ -310,12 +317,14 @@ body.plan-mode .planning-panel .design-preview img { display: block; width: 100%
 
 .modal { position: fixed; inset: 0; z-index: 20; }
 .modal-backdrop { position: absolute; inset: 0; background: rgba(10, 31, 25, 0.68); }
-.modal-panel { position: relative; width: min(1120px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: 16px auto; padding: clamp(20px, 3vw, 34px); overflow: auto; border: 1px solid #dce5de; border-radius: 8px; background: white; box-shadow: 0 35px 90px rgba(0, 0, 0, 0.22); }
+.modal-panel { position: relative; width: min(1120px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: 16px auto; padding: clamp(20px, 3vw, 34px); overflow: auto; border: 1px solid #adc9b7; border-radius: 8px; background: #e5f0e7; box-shadow: 0 35px 90px rgba(0, 0, 0, 0.22); }
 .modal-panel > h2 { margin: 0 0 24px; padding-right: 40px; color: var(--ink); font-size: 24px; }
 .modal-close { position: absolute; top: 18px; right: 18px; width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 5px; background: white; color: var(--ink); font-size: 20px; cursor: pointer; }
-.modal-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0 20px; margin: 0 0 18px; }
-.modal-summary .field-item { min-height: 66px; padding: 10px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; }
-.caption-panel { margin: 18px 0; padding: 18px; border: 1px solid #d0dfd3; border-radius: 5px; background: #f2f8f3; }
+.modal-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 0 0 18px; }
+.modal-summary .field-item { min-height: 76px; padding: 12px 14px; border: 1px solid #a9cdb4; border-radius: 5px; background: #cfe7d5; box-shadow: none; }
+.modal-summary .field-item:nth-child(3n + 2) { border-color: #e1b99b; background: #f3d9c4; }
+.modal-summary .field-item:nth-child(3n + 3) { border-color: #c0cf9a; background: #deebc4; }
+.caption-panel { margin: 18px 0; padding: 18px; border: 1px solid #aed0ba; border-radius: 5px; background: #d1e9d9; }
 .caption-panel h3, .ad-section h3 { margin: 0 0 8px; color: var(--accent-dark); font-size: 16px; }
 .caption-panel p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
 .caption-panel .caption-notice { margin-top: 11px; color: #65796a; font-size: 12px; }
@@ -324,10 +333,10 @@ body.plan-mode .planning-panel .design-preview img { display: block; width: 100%
 .listing-reference { margin-top: 24px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .modal-actions, .file-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 20px; }
 .modal-actions .text-button:first-child { border-color: var(--accent); background: var(--accent); color: white; }
-.budget-table { display: table; width: 100%; border-collapse: collapse; margin-top: 14px; background: white; font-size: 13px; box-shadow: none; }
+.budget-table { display: table; width: 100%; border-collapse: collapse; margin-top: 14px; background: #e5f0e5; font-size: 13px; box-shadow: none; }
 .budget-table th, .budget-table td { padding: 10px; border: 1px solid var(--line); text-align: left; overflow-wrap: anywhere; }
 .budget-table th { background: var(--accent-dark); color: white; }
-.budget-table tbody tr:nth-child(even) { background: #f7f9f7; }
+.budget-table tbody tr:nth-child(even) { background: #d8e8db; }
 
 @media (max-width: 1100px) {
   .pick-grid, .property-list, .option-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -369,7 +378,7 @@ body.plan-mode .planning-panel .design-preview img { display: block; width: 100%
   .pick-grid[data-layout="feature"] .pick-aside .pick-price { margin-top: 0; }
   .pick-grid[data-layout="feature"] > .pick-card:first-child::before { top: 28px; right: 23px; width: 27px; }
   .pick-grid[data-layout="feature"] > .pick-card:first-child h3 { font-size: 28px; }
-  body:not(.plan-mode) .property-card { grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 22px 0; }
+  body:not(.plan-mode) .property-card { grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 18px; }
   body:not(.plan-mode) .property-card .property-price { grid-column: 1; grid-row: auto; margin-top: 6px; }
   body:not(.plan-mode) .property-card .option-actions { grid-column: 1; }
   .modal-panel { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); margin: 8px auto; padding: 20px 15px; }

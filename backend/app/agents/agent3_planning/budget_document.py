@@ -239,11 +239,12 @@ def _write_budget_html(
     .property-location {{ color: var(--muted); }}
     .notice {{ margin: 0 0 2px; padding: 13px 16px; border-left: 4px solid #c46c43; border-radius: 3px; background: #f4dfcf; color: #723e29; font-weight: 700; }}
     .summary {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 20px 0 0; }}
-    .box {{ min-width: 0; padding: 18px; border: 1px solid #83b99b; border-top: 5px solid #187261; border-radius: 6px; background: #c9e7d8; box-shadow: 0 8px 18px rgba(25, 75, 64, 0.08); }}
-    .box:nth-child(2) {{ border-color: #dda27b; border-top-color: #b85f3d; background: #f6d9c2; }}
-    .box.emphasis {{ border-color: #194b40; border-top-color: var(--peach); background: #194b40; color: white; }}
-    .box:nth-child(4) {{ border-color: #a7bc7c; border-top-color: #698943; background: #dce8bd; }}
-    .box span {{ display: block; margin-bottom: 8px; color: #496b58; font-size: 12px; }}
+    .box {{ min-width: 0; min-height: 112px; padding: 19px; border: 1px solid #126f76; border-top: 5px solid #93d9cb; border-radius: 6px; background: #167780; color: #fff; box-shadow: 0 10px 24px rgba(25, 75, 64, 0.12); }}
+    .box:nth-child(2) {{ border-color: #db825b; border-top-color: #a74d37; background: #f5ad83; color: #38271f; }}
+    .box.emphasis {{ border-color: #123f36; border-top-color: var(--peach); background: #123f36; color: #fff; }}
+    .box:nth-child(4) {{ border-color: #a7c36b; border-top-color: #668441; background: #c7e388; color: #263721; }}
+    .box span {{ display: block; margin-bottom: 8px; color: #e0f4ed; font-size: 12px; }}
+    .box:nth-child(2) span, .box:nth-child(4) span {{ color: #4e4b32; }}
     .box.emphasis span {{ color: #d5ead9; }}
     .box strong {{ display: block; font-size: 21px; line-height: 1.25; overflow-wrap: anywhere; }}
     .house-facts {{ display: flex; gap: 14px 32px; flex-wrap: wrap; font-weight: 700; }}
