@@ -311,7 +311,9 @@
     main.appendChild(top);
 
     const planImage = firstPlanUrl(option?.planning?.png_url || option?.planning?.svg_url);
+    const identity = node("div", null, "pick-identity");
     if (planImage) {
+      card.classList.add("pick-card--plan");
       const media = node("button", null, "pick-plan-preview");
       media.type = "button";
       media.setAttribute("aria-label", `View plan for ${item.title || "this property"}`);
@@ -321,28 +323,28 @@
       image.loading = "lazy";
       media.appendChild(image);
       media.addEventListener("click", () => openOptionModal(option));
-      main.appendChild(media);
+      identity.appendChild(media);
     }
 
-    main.appendChild(node("h3", item.title || property.title || "Property"));
+    identity.appendChild(node("h3", item.title || property.title || "Property"));
     const location = [property.location, property.district].filter(Boolean).join(", ");
     const meta = [location, friendlyType(property.property_type), property.listing_type === "rent" ? "For rent" : "For sale"].filter(Boolean).join("  /  ");
-    main.appendChild(node("p", meta, "pick-meta"));
+    identity.appendChild(node("p", meta, "pick-meta"));
 
     const facts = [
       property.bedrooms != null ? `${property.bedrooms} beds` : null,
       property.bathrooms != null ? `${property.bathrooms} baths` : null,
       property.land_size_perches != null ? `${property.land_size_perches} perches` : null,
       property.house_size_sqft != null ? `${property.house_size_sqft} sqft` : null,
-      property.is_verified ? "Marked verified in source data" : null,
     ].filter(Boolean);
     if (facts.length) {
       const factList = node("div", null, "pick-facts");
       facts.forEach(value => factList.appendChild(node("span", value)));
-      main.appendChild(factList);
+      identity.appendChild(factList);
     }
 
-    if (property.is_verified) main.appendChild(node("p", "Not independently verified by PropWise.", "pick-meta"));
+    if (property.is_verified) identity.appendChild(node("p", "Source marked verified; not independently checked by PropWise.", "pick-meta"));
+    main.appendChild(identity);
 
     const expectedProject = item.budget?.total_project?.expected_lkr;
     const amount = item.budget?.basis === "TOTAL_PROJECT" && expectedProject != null
@@ -453,7 +455,7 @@
     const files = response.presentation?.owned_plan?.files;
     if (files) {
       const actions = node("div", null, "pick-actions");
-      actions.appendChild(fileDownloadButton("Download all floors", files.zip));
+      actions.appendChild(fileDownloadButton("Download all floors", files.zip, files.png?.length));
       actions.appendChild(fileDownloadButton("Download DXF", files.dxf));
       section.appendChild(actions);
     }
@@ -515,25 +517,21 @@
     if (usefulProse(explanation?.summary)) {
       root.appendChild(node("p", usefulProse(explanation.summary), "results-intro"));
     }
-    const source = response.explanation_status || explanation?.source;
-    root.appendChild(node("p", ({
-      DETERMINISTIC: "Deterministic assessment", LLM: "Grounded AI explanation",
-      DETERMINISTIC_FALLBACK: "Deterministic fallback explanation",
-    }[source] || "Explanation source not provided"), "results-context"));
+    const guidance = node("div", null, "results-guidance");
     const top = response.recommendations?.[0];
     if (top) {
       const reason = usefulProse(explanation?.top_recommendation_reason,
         [...keyStrengths(top), ...(top.trade_offs || [])]) || structuredReason(top);
-      noteList(root, "Why this is recommended", [reason]);
+      noteList(guidance, "Why this is recommended", [reason]);
     }
     if (explanation) {
-      noteList(root, "Comparison explanation", (explanation.comparison_summary || []).map(value => usefulComparison(value, response.comparisons)).filter(Boolean).slice(0, 2));
-      noteList(root, "Next steps", actionSteps(explanation.next_steps));
+      noteList(guidance, "Comparison explanation", (explanation.comparison_summary || []).map(value => usefulComparison(value, response.comparisons)).filter(Boolean).slice(0, 2));
+      noteList(guidance, "Next steps", actionSteps(explanation.next_steps));
     }
-    assessmentCoverage(root, response.coverage);
-    noteList(root, "Important notes", importantNotes(response.owned_land_assessment ? [response.owned_land_assessment] : candidates,
+    assessmentCoverage(guidance, response.coverage);
+    noteList(guidance, "Important notes", importantNotes(response.owned_land_assessment ? [response.owned_land_assessment] : candidates,
       [...(response.warnings || []), ...(explanation?.warnings || [])]));
-    noteList(root, "More information needed", response.clarification_questions);
+    noteList(guidance, "More information needed", response.clarification_questions);
 
     const properties = new Map((response.presentation?.properties || []).map(value => [value.listing_id, value]));
     const options = new Map((response.presentation?.land_house_options || []).map(value => [value.property?.listing_id, value]));
@@ -543,6 +541,8 @@
       const cards = node("div", null, "pick-grid");
       const featureLayout = response.recommendations.length === 3 && !response.presentation?.land_house_options?.length;
       if (featureLayout) cards.dataset.layout = "feature";
+      else if (response.presentation?.land_house_options?.length) cards.dataset.layout = "plan";
+      else cards.dataset.layout = "standard";
       response.recommendations.forEach((item, index) => {
         cards.appendChild(optionDetails(item, properties.get(item.listing_id), options.get(item.listing_id), explanations.get(item.listing_id), index, false, featureLayout && index === 0));
       });
@@ -556,12 +556,15 @@
       const details = node("details", null, "alternative-list");
       details.appendChild(node("summary", `Other options to consider (${response.alternatives.length})`));
       const cards = node("div", null, "pick-grid");
+      if (response.presentation?.land_house_options?.length) cards.dataset.layout = "plan";
       response.alternatives.forEach((item, index) => {
         cards.appendChild(optionDetails(item, properties.get(item.listing_id), options.get(item.listing_id), explanations.get(item.listing_id), index, true));
       });
       details.appendChild(cards);
       root.appendChild(details);
     }
+
+    if (guidance.childElementCount) root.appendChild(guidance);
 
     if (!response.recommendations?.length && !response.owned_land_assessment) {
       root.appendChild(node("p", "Try a broader area or budget to see more options.", "empty-text"));

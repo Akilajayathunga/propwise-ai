@@ -442,7 +442,7 @@ function openOptionModal(option) {
     ["Download plan image", planning.png_url],
     ["Download budget CSV", planning.budget_csv_url],
     ["Download DXF", planning.dxf_url],
-  ].forEach(([label, path]) => downloads.appendChild(fileDownloadButton(label, path)));
+  ].forEach(([label, path]) => downloads.appendChild(fileDownloadButton(label, path, label === "Download all floors" ? planning.png_urls?.length : null)));
 
   const warning = document.createElement("p");
   warning.className = "plan-notice";
@@ -810,9 +810,11 @@ function downloadLink(label, path) {
   return link;
 }
 
-function fileDownloadButton(label, path) {
+function fileDownloadButton(label, path, imageCount = null) {
   const button = actionButton(label, () => downloadFile(path));
-  if (typeof path === "string" && path.toLowerCase().endsWith(".zip")) button.title = "All floors ZIP";
+  if (typeof path === "string" && path.toLowerCase().endsWith(".zip")) {
+    button.title = imageCount ? `ZIP containing ${imageCount} PNG floor image${imageCount === 1 ? "" : "s"}` : "ZIP containing all generated floor PNG images";
+  }
   if (!firstPlanUrl(path)) {
     button.disabled = true;
     button.setAttribute("aria-disabled", "true");
@@ -832,20 +834,21 @@ function openPlanFile(path) {
 async function downloadFile(path) {
   const url = firstPlanUrl(path);
   if (!url) return;
-  const response = await fetch(url);
-  if (!response.ok) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = fileNameFromPath(path);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
+  } catch (_error) {
     showError(`Unable to download ${fileNameFromPath(path)}.`);
-    return;
   }
-  const blob = await response.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = fileNameFromPath(path);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(objectUrl);
 }
 
 async function fetchTextFile(path) {

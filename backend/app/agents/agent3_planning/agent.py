@@ -68,7 +68,7 @@ class HomePlanningAgent:
         svg_paths = render_svg(best, output_dir)
         png_paths = render_png(best, output_dir)
         dxf_path = generate_dxf(best, output_dir)
-        zip_path = _write_plan_zip(output_dir, png_paths, svg_paths, json_path)
+        zip_path = _write_plan_zip(output_dir, png_paths)
         budget = analyze_budget(request, selected, estimated_area)
 
         summary = {
@@ -141,17 +141,10 @@ def canonical_plan(plan, warnings: list[str]) -> dict:
     }
 
 
-def _write_plan_zip(output_dir: Path, png_paths: list[str], svg_paths: list[str], json_path: Path) -> Path:
+def _write_plan_zip(output_dir: Path, png_paths: list[str]) -> Path:
     zip_path = output_dir / "all_floor_plans.zip"
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path_value in png_paths:
             path = Path(path_value)
-            if path.exists():
-                archive.write(path, arcname=path.name)
-        for path_value in svg_paths:
-            path = Path(path_value)
-            if path.exists():
-                archive.write(path, arcname=path.name)
-        if json_path.exists():
-            archive.write(json_path, arcname=json_path.name)
+            archive.write(path, arcname=path.name)
     return zip_path

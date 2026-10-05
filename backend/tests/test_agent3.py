@@ -1,9 +1,10 @@
 import json
+import zipfile
 from pathlib import Path
 
 import ezdxf
 
-from app.agents.agent3_planning.agent import HomePlanningAgent
+from app.agents.agent3_planning.agent import HomePlanningAgent, _write_plan_zip
 from app.agents.agent3_planning.candidate_generator import generate_candidates
 from app.agents.agent3_planning.constraints import validate_candidate
 from app.agents.agent3_planning.models import CandidatePlan, Parking, Rect, Room, SiteAnalysis
@@ -255,6 +256,32 @@ def test_canonical_json_svg_png_and_dxf_generated() -> None:
     assert response.files.png and all(Path(path).exists() for path in response.files.png)
     assert response.files.dxf and Path(response.files.dxf).exists()
     assert response.files.zip and Path(response.files.zip).exists()
+    with zipfile.ZipFile(response.files.zip) as archive:
+        assert archive.namelist() == [Path(path).name for path in response.files.png]
+        assert all(name.endswith(".png") for name in archive.namelist())
+
+
+def test_all_floors_download_has_one_image_per_floor(tmp_path: Path) -> None:
+    for floor_count in (2, 3):
+        output_dir = tmp_path / str(floor_count)
+        output_dir.mkdir()
+        paths = []
+        for floor in range(1, floor_count + 1):
+            path = output_dir / ("ground_floor.png" if floor == 1 else f"floor_{floor}.png")
+            path.write_bytes(b"png")
+            paths.append(str(path))
+
+        with zipfile.ZipFile(_write_plan_zip(output_dir, paths)) as archive:
+            assert archive.namelist() == [Path(path).name for path in paths]
+
+
+def test_three_floor_plan_download_contains_three_images() -> None:
+    response = HomePlanningAgent().generate(plan_house_request(floors=3, candidate_count=3))
+
+    assert response.files.zip is not None
+    assert len(response.files.png) == 3
+    with zipfile.ZipFile(response.files.zip) as archive:
+        assert archive.namelist() == [Path(path).name for path in response.files.png]
 
 
 def test_dxf_can_be_reopened() -> None:
