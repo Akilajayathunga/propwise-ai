@@ -45,6 +45,15 @@ def test_generate_planning_endpoint() -> None:
     with zipfile.ZipFile(io.BytesIO(download.content)) as archive:
         assert archive.namelist() == [Path(path).name for path in body["files"]["png"]]
 
+    public_png_url = artifact_url(body["files"]["png"][0])
+    assert public_png_url is not None
+    preview = client.get(public_png_url)
+    assert preview.status_code == 200
+    assert "content-disposition" not in preview.headers
+    image_download = client.get(f"{public_png_url}?download=1")
+    assert image_download.status_code == 200
+    assert image_download.headers["content-disposition"] == f'attachment; filename="{Path(body["files"]["png"][0]).name}"'
+
 
 def test_evaluate_land_house_returns_combined_options_with_preserved_house_requirements() -> None:
     response = client.post(

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+from urllib.parse import parse_qs
 
 from app.api.v1.router import router as api_v1_router
 from app.config import settings
@@ -15,8 +16,11 @@ PLANS_DIR.mkdir(parents=True, exist_ok=True)
 class PlanStaticFiles(StaticFiles):
     async def get_response(self, path: str, scope: dict):
         response = await super().get_response(path, scope)
-        if Path(path).name == "all_floor_plans.zip" and response.status_code == 200:
-            response.headers["Content-Disposition"] = 'attachment; filename="all_floor_plans.zip"'
+        filename = Path(path).name
+        requested_download = parse_qs(scope.get("query_string", b"").decode("ascii", errors="ignore")).get("download") == ["1"]
+        if response.status_code == 200 and (filename == "all_floor_plans.zip" or requested_download):
+            if filename.isascii() and all(char.isalnum() or char in "_.-" for char in filename):
+                response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
 
 

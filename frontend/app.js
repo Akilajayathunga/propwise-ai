@@ -812,20 +812,20 @@ function downloadLink(label, path) {
 
 function fileDownloadButton(label, path, imageCount = null) {
   const url = firstPlanUrl(path);
-  if (url && typeof path === "string" && path.toLowerCase().endsWith(".zip")) {
+  if (url) {
     const link = document.createElement("a");
     link.className = "text-button";
-    link.href = url;
+    link.href = `${url}?download=1`;
     link.download = fileNameFromPath(path);
     link.textContent = label;
-    link.title = imageCount ? `ZIP containing ${imageCount} PNG floor image${imageCount === 1 ? "" : "s"}` : "ZIP containing all generated floor PNG images";
+    if (typeof path === "string" && path.toLowerCase().endsWith(".zip")) {
+      link.title = imageCount ? `ZIP containing ${imageCount} PNG floor image${imageCount === 1 ? "" : "s"}` : "ZIP containing all generated floor PNG images";
+    }
     return link;
   }
-  const button = actionButton(label, () => downloadFile(path));
-  if (!url) {
-    button.disabled = true;
-    button.setAttribute("aria-disabled", "true");
-  }
+  const button = actionButton(label, () => {});
+  button.disabled = true;
+  button.setAttribute("aria-disabled", "true");
   return button;
 }
 
@@ -836,26 +836,6 @@ function openPlanFile(path) {
     return;
   }
   window.open(url, "_blank", "noreferrer");
-}
-
-async function downloadFile(path) {
-  const url = firstPlanUrl(path);
-  if (!url) return;
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Download failed: ${response.status}`);
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    link.download = fileNameFromPath(path);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
-  } catch (_error) {
-    showError(`Unable to download ${fileNameFromPath(path)}.`);
-  }
 }
 
 async function fetchTextFile(path) {
