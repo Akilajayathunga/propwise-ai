@@ -4,8 +4,10 @@ const apiBaseUrl = (configuredApiBase || (localFrontend ? "http://127.0.0.1:8000
 
 const form = document.querySelector("#requirements-form");
 const queryInput = document.querySelector("#query");
+const queryLabel = form.querySelector('label[for="query"]');
 const submitButton = document.querySelector("#submit-button");
 const message = document.querySelector("#message");
+const chatHistory = document.querySelector("#chat-history");
 const propertiesPanel = document.querySelector("#properties-panel");
 const planningPanel = document.querySelector("#planning-panel");
 const resultsShell = document.querySelector(".results-shell");
@@ -16,7 +18,7 @@ const modalClose = document.querySelector("#modal-close");
 const showMoreButton = document.querySelector("#show-more-properties");
 let modalTrigger = null;
 let activeRequestId = 0;
-let activeOriginalQuery = "";
+let conversationComplete = false;
 
 let latestOptions = [];
 let pendingRequirements = null;
@@ -49,8 +51,10 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
+  if (!pendingRequirements && conversationComplete) clearConversation();
+  conversationComplete = false;
+  appendConversationMessage("user", query);
   const requestId = ++activeRequestId;
-  if (!pendingRequirements) activeOriginalQuery = query;
   setLoading(true);
   resetResults("Finding your options...");
 
@@ -82,9 +86,11 @@ document.querySelector("#new-request").addEventListener("click", (event) => {
   pendingRequirements = null;
   pendingQuestion = null;
   ownedLandInput = {};
-  activeOriginalQuery = "";
+  conversationComplete = false;
+  clearConversation();
   form.reset();
   queryInput.placeholder = "Describe the property or home you have in mind...";
+  queryLabel.textContent = "What are you looking for?";
   resetResults("");
   setLoading(false);
   queryInput.scrollIntoView({ block: "center" });
@@ -97,6 +103,9 @@ modal.addEventListener("click", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !modal.classList.contains("hidden")) closeModal();
+});
+window.addEventListener("resize", () => {
+  if (!chatHistory.classList.contains("hidden")) chatHistory.scrollTop = chatHistory.scrollHeight;
 });
 
 async function postJson(path, body) {
@@ -122,6 +131,7 @@ async function continueWithRequirements(requirements, requestId) {
   }
 
   queryInput.placeholder = "Describe the property or home you have in mind...";
+  queryLabel.textContent = "What are you looking for?";
 
   message.textContent = isPlanningIntent(requirements.intent)
     ? "Finding options and preparing your home plan..."
@@ -136,13 +146,14 @@ async function continueWithRequirements(requirements, requestId) {
   if (requestId !== activeRequestId) return;
   window.Agent4UI.render(result);
   if (result.presentation?.owned_plan) showPlanning(result.presentation.owned_plan);
-  queryInput.value = activeOriginalQuery;
+  queryInput.value = "";
   document.body.classList.toggle("plan-mode", Boolean(result.presentation?.owned_plan));
   document.body.classList.add("has-results");
   if (result.status === "NEEDS_CLARIFICATION") {
     const next = nextPlanningQuestion(requirements);
     if (next) { askFollowUp(requirements, next); return; }
   }
+  conversationComplete = true;
   resultsShell.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
 
   // Separately retrieve all Agent 2 results (>= 50% relevance) for the properties panel
@@ -161,7 +172,27 @@ async function continueWithRequirements(requirements, requestId) {
 
 function setLoading(isLoading) {
   submitButton.disabled = isLoading;
-  submitButton.querySelector(".button-label").textContent = isLoading ? "Searching..." : pendingQuestion ? "Send details" : "Explore options";
+  submitButton.querySelector(".button-label").textContent = isLoading ? "Searching..." : pendingQuestion ? "Send reply" : "Explore options";
+}
+
+function appendConversationMessage(role, content) {
+  const entry = document.createElement("div");
+  entry.className = `chat-entry chat-entry--${role}`;
+  const speaker = document.createElement("span");
+  speaker.className = "chat-speaker";
+  speaker.textContent = role === "user" ? "You" : "PropWise";
+  const text = document.createElement("p");
+  text.textContent = content;
+  entry.append(speaker, text);
+  chatHistory.appendChild(entry);
+  chatHistory.classList.remove("hidden");
+  chatHistory.scrollTop = chatHistory.scrollHeight;
+  requestAnimationFrame(() => { chatHistory.scrollTop = chatHistory.scrollHeight; });
+}
+
+function clearConversation() {
+  chatHistory.replaceChildren();
+  chatHistory.classList.add("hidden");
 }
 
 function resetResults(text) {
@@ -180,11 +211,12 @@ function resetResults(text) {
 function askFollowUp(requirements, question) {
   pendingRequirements = requirements;
   pendingQuestion = question;
-  message.className = "follow-up-text";
-  message.textContent = question.question;
-  message.classList.remove("hidden");
+  appendConversationMessage("assistant", question.question);
+  message.className = "search-message hidden";
+  message.textContent = "";
   queryInput.value = "";
-  queryInput.placeholder = question.question;
+  queryInput.placeholder = "Type your reply...";
+  queryLabel.textContent = "Your reply";
   queryInput.focus();
   setLoading(false);
 }

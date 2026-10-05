@@ -8,7 +8,7 @@
     <title>PropWise AI | Find your place</title>
     <link rel="stylesheet" href="styles.css?v=planning-follow-up" />
     <link rel="stylesheet" href="agent4.css?v=phase3" />
-    <link rel="stylesheet" href="ui-refresh.css?v=neon-1" />
+    <link rel="stylesheet" href="ui-refresh.css?v=chat-glass-1" />
   </head>
   <body>
     <header class="site-header">
@@ -30,15 +30,19 @@
           <p class="eyebrow">PROPWISE AI <span class="eyebrow-line" aria-hidden="true"></span> SRI LANKA</p>
           <h1 id="page-title">Find a place<br />to call yours.</h1>
 
-          <form id="requirements-form" class="query-form">
-            <label for="query">What are you looking for?</label>
-            <div class="composer">
-              <textarea id="query" name="query" maxlength="2000" rows="3" placeholder="Describe the property or home you have in mind..."></textarea>
-              <button id="submit-button" class="submit-button" type="submit"><span class="button-label">Explore options</span><span aria-hidden="true">&#8594;</span></button>
-            </div>
-            <label class="a4-explanation-control"><input id="explanation-enabled" type="checkbox" /> Use grounded AI explanation (optional)</label>
-          </form>
-          <p id="message" class="search-message hidden" aria-live="polite"></p>
+          <div class="search-chat">
+            <div class="chat-heading"><span class="chat-presence" aria-hidden="true"></span><span>PropWise conversation</span></div>
+            <div id="chat-history" class="chat-history hidden" role="log" aria-live="polite" aria-label="Property conversation"></div>
+            <form id="requirements-form" class="query-form">
+              <label for="query">What are you looking for?</label>
+              <div class="composer">
+                <textarea id="query" name="query" maxlength="2000" rows="3" placeholder="Describe the property or home you have in mind..."></textarea>
+                <button id="submit-button" class="submit-button" type="submit"><span class="button-label">Explore options</span><span aria-hidden="true">&#8594;</span></button>
+              </div>
+              <label class="a4-explanation-control"><input id="explanation-enabled" type="checkbox" /> Use grounded AI explanation (optional)</label>
+            </form>
+            <p id="message" class="search-message hidden" aria-live="polite"></p>
+          </div>
         </div>
         <span class="image-note">Illustrative image</span>
       </section>
@@ -84,7 +88,7 @@
       </section>
     </div>
 
-  <script src="app.js?v=native-download-2"></script>
+    <script src="app.js?v=chat-thread-1"></script>
     <script src="agent4.js?v=neon-1"></script>
   </body>
 </html>
