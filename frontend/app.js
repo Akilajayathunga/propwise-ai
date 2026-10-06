@@ -19,6 +19,7 @@ const modalClose = document.querySelector("#modal-close");
 let latestOptions = [];
 let pendingRequirements = null;
 let pendingQuestion = null;
+let ownedLandInput = {};
 
 const planningQuestions = [
   {
@@ -50,6 +51,7 @@ form.addEventListener("submit", async (event) => {
   resetResults("Understanding your request...");
 
   try {
+    if (!pendingRequirements) ownedLandInput = {};
     const requirements = pendingRequirements && pendingQuestion
       ? mergeFollowUpAnswer(pendingRequirements, pendingQuestion, query)
       : await postJson("/api/v1/requirements/parse", { query });
@@ -80,7 +82,12 @@ async function postJson(path, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+  if (!response.ok) {
+    let detail;
+    try { detail = (await response.json()).detail; } catch (_) { /* Keep a safe status message. */ }
+    const text = Array.isArray(detail) ? detail.map(item => `${(item.loc || []).join(".")}: ${item.msg}`).join("; ") : detail;
+    throw new Error(typeof text === "string" ? text : `Request failed with status ${response.status}`);
+  }
   return response.json();
 }
 
@@ -95,25 +102,31 @@ async function continueWithRequirements(requirements) {
 
   queryInput.placeholder = "Enter your property request";
 
-  if (shouldSearchProperties(requirements.intent)) {
-    message.textContent = requirements.intent === "LAND_AND_HOUSE" ? "Finding land options..." : "Searching properties...";
-    const searchResult = await postJson("/api/v1/property-search", { requirements, top_n: 30 });
-
-    if (requirements.intent === "LAND_AND_HOUSE") {
-      message.textContent = "Generating land and house combinations...";
-      const evaluation = await postJson("/api/v1/planning/evaluate-land-house", {
-        requirements,
-        property_results: searchResult.results,
-      });
-      showLandHouseOptions(evaluation, requirements);
-    } else {
-      showProperties(searchResult);
-    }
+  message.textContent = isPlanningIntent(requirements.intent)
+    ? "Evaluating requirements, conceptual plans and recommendations..."
+    : "Retrieving candidates and preparing final recommendations...";
+  const request = {
+    requirements,
+    top_k: 10,
+    explanation_enabled: document.querySelector("#explanation-enabled").checked,
+  };
+  if (requirements.intent === "PLAN_HOUSE") request.owned_land = { ...ownedLandInput };
+  const result = await postJson("/api/v1/recommendation", request);
+  window.Agent4UI.render(result);
+  if (result.presentation?.owned_plan) showPlanning(result.presentation.owned_plan);
+  if (result.status === "NEEDS_CLARIFICATION") {
+    const next = nextPlanningQuestion(requirements);
+    if (next) { askFollowUp(requirements, next); return; }
   }
 
-  if (requirements.intent === "PLAN_HOUSE") {
-    message.textContent = "Generating conceptual plan...";
-    showPlanning(await postJson("/api/v1/planning/generate", buildPlanningRequest(requirements, null)));
+  // Separately retrieve all Agent 2 results (>= 50% relevance) for the properties panel
+  if (shouldSearchProperties(requirements.intent)) {
+    try {
+      const searchResult = await postJson("/api/v1/property-search", { requirements });
+      showProperties(searchResult);
+    } catch (_) {
+      // Non-fatal: Agent 4 result is already shown above
+    }
   }
 
   message.classList.add("hidden");
@@ -125,6 +138,8 @@ function setLoading(isLoading) {
 }
 
 function resetResults(text) {
+  window.Agent4UI?.reset();
+  closeModal();
   message.className = "empty-text";
   message.textContent = text;
   message.classList.remove("hidden");
@@ -154,7 +169,8 @@ function showFollowUpError(question) {
 }
 
 function showError(errorMessage) {
-  intentTitle.textContent = "Unable to parse";
+  intentTitle.textContent = "Unable to complete request";
+  window.Agent4UI?.reset();
   confidence.classList.add("hidden");
   fieldGrid.classList.add("hidden");
   jsonBlock.classList.add("hidden");
@@ -195,7 +211,7 @@ function showLandHouseOptions(evaluation, requirements) {
 
   latestOptions = evaluation.options || [];
   propertiesPanel.classList.remove("hidden");
-  optionsTitle.textContent = "Best Land + House Options";
+  optionsTitle.textContent = "Supporting Land + House Plans";
   count.textContent = `${evaluation.returned} options`;
   analysis.textContent = evaluation.warnings?.length
     ? friendlyWarnings(evaluation.warnings)
@@ -227,9 +243,9 @@ function optionCard(option, index) {
   top.className = "option-topline";
   const badge = document.createElement("span");
   badge.className = "match-badge";
-  badge.textContent = index === 0 ? "Best match" : `Option ${index + 1}`;
+  badge.textContent = `Planning option ${index + 1}`;
   const score = document.createElement("strong");
-  score.textContent = `${Math.round(option.combination_score || 0)}%`;
+  score.textContent = `Upstream combination: ${Number(option.combination_score || 0).toFixed(1)} / 100`;
   top.append(badge, score);
 
   const title = document.createElement("h3");
@@ -310,7 +326,7 @@ function showProperties(result) {
     title.textContent = p.title || p.listing_id || "Property";
     const meta = document.createElement("div");
     meta.className = "property-meta";
-    [`${p.location || "Unknown"} ${p.district ? `(${p.district})` : ""}`, `${p.property_type} / ${p.listing_type}`, `Score ${Number(p.score || 0).toFixed(2)}`].forEach((text) => {
+    [`${p.location || "Unknown"} ${p.district ? `(${p.district})` : ""}`, `${p.property_type} / ${p.listing_type}`, `Retrieval relevance ${Number(p.score || 0).toFixed(2)} / 1`].forEach((text) => {
       const span = document.createElement("span");
       span.textContent = text;
       meta.appendChild(span);
@@ -332,7 +348,7 @@ function showPlanning(result) {
   const jsonOutput = document.querySelector("#planning-json-output");
 
   planningPanel.classList.remove("hidden");
-  score.textContent = result.layout_score === null || result.layout_score === undefined ? "No score" : `${Math.round(result.layout_score)}%`;
+  score.textContent = result.layout_score === null || result.layout_score === undefined ? "No score" : `Layout quality: ${Number(result.layout_score).toFixed(1)} / 100`;
   const roomSummary = summarizeRooms(result.plan?.rooms || []);
   budgetGrid.innerHTML = "";
   [
@@ -364,7 +380,7 @@ function openOptionModal(option) {
     summaryItem("Property", `${property.location || "Land"}${property.land_size_perches ? ` - ${property.land_size_perches} perches` : ""}`),
     summaryItem("House", `${formatCount(house.bedrooms, "Bed")} - ${formatCount(house.bathrooms, "Bath")} - ${formatCount(house.floors, "Floor")}`),
     summaryItem("Status", friendlyStatus(budget.budget_status)),
-    summaryItem("Score", `${Math.round(option.combination_score || 0)}%`),
+    summaryItem("Upstream combination index", `${Number(option.combination_score || 0).toFixed(1)} / 100`),
   );
 
   const planTabs = document.createElement("div");
@@ -435,10 +451,10 @@ function openAdDetailsModal(option) {
     ["Listing type", ad.listing_type || "sale"],
     ["Property type", ad.property_type || "land"],
     ["Land size", formatPerches(property.land_size_perches || ad.land_size_perches)],
-    ["Price", formatMoney(property.land_price_lkr || ad.sale_total_price_lkr || ad.price_lkr)],
+    ["Price", ad.listing_type === "rent" ? `${formatMoney(ad.rent_monthly_lkr)} / month` : formatMoney(property.land_price_lkr ?? ad.sale_total_price_lkr)],
     ["Contact number", contactNumber],
     ["Verified", ad.is_verified === undefined ? null : ad.is_verified ? "Yes" : "No"],
-    ["Match score", property.agent2_score === undefined ? null : `${Math.round(Number(property.agent2_score) * 100)}%`],
+    ["Retrieval relevance (upstream)", property.agent2_score === undefined ? null : `${Number(property.agent2_score).toFixed(3)} / 1`],
   ]
     .filter(([, value]) => value !== null && value !== undefined && value !== "")
     .forEach(([label, value]) => header.appendChild(summaryItem(label, value)));
@@ -618,24 +634,62 @@ function isPlanningIntent(intent) {
 }
 
 function nextPlanningQuestion(requirements) {
-  if (!isPlanningIntent(requirements.intent)) return null;
-  if (requirements.intent === "PLAN_HOUSE" && !requirements.land_size_perches) {
-    return {
-      key: "land_size_perches",
-      label: "land size",
-      question: "What is the land size in perches? Example: 10 perches.",
-    };
+  const intent = requirements.intent;
+  if (!shouldSearchProperties(intent) && intent !== "PLAN_HOUSE") return null;
+  if (intent === "COMPARE_PROPERTIES" && !requirements.listing_type) {
+    return { key: "listing_type", label: "sale or rent", question: "Are you comparing properties for sale or rent?" };
   }
-  return planningQuestions.find((question) => !requirements[question.key]) || null;
+  const budgetKey = intent === "LAND_AND_HOUSE" ? "total_project_budget_lkr"
+    : intent === "PLAN_HOUSE" ? (requirements.total_project_budget_lkr != null ? "total_project_budget_lkr" : "construction_budget_lkr")
+    : intent === "BUY_LAND" ? (requirements.maximum_budget_lkr != null ? "maximum_budget_lkr" : "maximum_land_budget_lkr")
+    : "maximum_budget_lkr";
+  if (requirements[budgetKey] == null) {
+    const basis = intent === "RENT_PROPERTY" || requirements.listing_type === "rent" ? "monthly rent"
+      : intent === "LAND_AND_HOUSE" ? "total land and construction project"
+      : intent === "PLAN_HOUSE" ? "construction" : "purchase";
+    return { key: budgetKey, kind: "money", label: "budget in LKR",
+      question: `What is your maximum ${basis} budget in LKR? Example: 5000000 or 5 million.` };
+  }
+  if (!isPlanningIntent(intent)) return null;
+  if (intent === "PLAN_HOUSE" && !requirements.land_size_perches) {
+    return { key: "land_size_perches", label: "land size", question: "What is the land size in perches? Example: 10 perches." };
+  }
+  const room = planningQuestions.find(question => !requirements[question.key]);
+  if (room) return room;
+  if (intent === "PLAN_HOUSE") {
+    for (const [key, name] of [["land_width_ft", "width"], ["land_length_ft", "length"]]) {
+      if (!ownedLandInput[key]) return { key: `owned_land.${key}`, kind: "dimension", label: `measured site ${name} in feet`,
+        question: `What is the measured site ${name} in feet? Dimensions will not be invented. Example: 50 feet.` };
+    }
+  }
+  return null;
 }
 
 function mergeFollowUpAnswer(requirements, question, answer) {
-  const value = question.key === "land_size_perches" ? extractDecimalAnswer(answer) : extractCountAnswer(answer);
-  if (!value) return null;
+  let value;
+  if (question.key === "listing_type") {
+    value = /rent/i.test(answer) ? "rent" : /sale|buy/i.test(answer) ? "sale" : null;
+  } else if (question.kind === "money") {
+    const match = String(answer).replaceAll(",", "").match(/([0-9]+(?:\.[0-9]+)?)\s*(million|mn|m|lakhs?|k)?/i);
+    if (match) {
+      const unit = (match[2] || "").toLowerCase();
+      value = Math.round(Number(match[1]) * (["million", "mn", "m"].includes(unit) ? 1000000 : unit.startsWith("lakh") ? 100000 : unit === "k" ? 1000 : 1));
+    }
+  } else {
+    value = question.key === "land_size_perches" || question.kind === "dimension" ? extractDecimalAnswer(answer) : extractCountAnswer(answer);
+  }
+  if (value == null || value === "" || (typeof value === "number" && (!Number.isFinite(value) || value <= 0))) return null;
+  if (question.key === "floors" && value > 5) return null;
+  if (["bedrooms", "bathrooms"].includes(question.key) && value > 20) return null;
+  if (question.kind === "dimension") {
+    if (value > 10000) return null;
+    ownedLandInput[question.key.split(".")[1]] = value;
+    return { ...requirements };
+  }
   return {
     ...requirements,
     [question.key]: value,
-    original_query: `${requirements.original_query || ""} ${answer}`.trim(),
+    original_query: `${requirements.original_query || ""} ${answer}`.trim().slice(0, 4000),
     missing_information: (requirements.missing_information || []).filter((field) => field !== question.key),
   };
 }
@@ -898,12 +952,9 @@ function formatCount(value, label) {
 }
 
 function firstPlanUrl(path) {
-  if (!path) return "";
-  const normalized = String(path).replaceAll("\\", "/");
-  const marker = "storage/plans/";
-  const index = normalized.indexOf(marker);
-  if (index === -1) return "";
-  return `${apiBaseUrl}/plans/${normalized.slice(index + marker.length)}`;
+  // Only server-projected artifacts on our backend. No external URLs or traversal.
+  if (typeof path !== "string" || !/^\/plans\/plan-[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+\.(png|svg|json|dxf|zip|csv|html|xls)$/.test(path)) return "";
+  return `${apiBaseUrl}${path}`;
 }
 
 function fileNameFromPath(path) {
@@ -929,7 +980,8 @@ function formatAdText(property, ad) {
     listing_type: ad.listing_type || "sale",
     property_type: ad.property_type || "land",
     land_size_perches: property.land_size_perches || ad.land_size_perches,
-    price_lkr: property.land_price_lkr || ad.sale_total_price_lkr || ad.price_lkr,
+    price_lkr: ad.listing_type === "rent" ? ad.rent_monthly_lkr : property.land_price_lkr ?? ad.sale_total_price_lkr,
+    price_basis: ad.listing_type === "rent" ? "monthly rent" : "sale total",
     contact_number: ad.contact_number || property.contact_number || extractContactNumber(caption) || extractContactNumber(JSON.stringify(ad)) || "Not mentioned in ad",
     verified: ad.is_verified === undefined ? null : ad.is_verified,
     posted_date: ad.posted_date,

@@ -20,6 +20,47 @@ from app.schemas.requirements import Intent, ParsedRequirements
 
 _BUDGET_RELAX_FACTOR = 1.20  # +20 % on max budget in relaxed mode
 
+# Common location qualifiers to strip when matching
+_LOCATION_QUALIFIERS = {
+    "near", "around", "close to", "vicinity of", "vicinity",
+    "city", "area", "zone", "region", "suburb",
+    "district", "town", "town area",
+}
+
+
+def _normalize_location(location: str) -> list[str]:
+    """Normalize a location phrase to extract searchable terms.
+    
+    Strips common qualifiers and returns both the original term and
+    normalized versions for flexible matching.
+    
+    Example:
+        "near malabe" -> ["malabe", "near malabe"]
+        "malabe city" -> ["malabe", "malabe city"]
+    """
+    if not location:
+        return []
+    
+    normalized = location.strip().lower()
+    result = [normalized]  # Always include the original
+    
+    # Try stripping each qualifier from start or end
+    words = normalized.split()
+    if len(words) > 1:
+        # Strip leading qualifiers
+        while words and words[0] in _LOCATION_QUALIFIERS:
+            words.pop(0)
+        # Strip trailing qualifiers  
+        while words and words[-1] in _LOCATION_QUALIFIERS:
+            words.pop()
+        
+        if words:
+            core_term = " ".join(words)
+            if core_term != normalized:
+                result.append(core_term)
+    
+    return result
+
 
 # ---------------------------------------------------------------------------
 # Individual filter masks
@@ -57,11 +98,18 @@ def _mask_property_type(df: pd.DataFrame, requirements: ParsedRequirements) -> p
     return df["property_type"].str.lower().isin(allowed)
 
 
-def _mask_location(df: pd.DataFrame, requirements: ParsedRequirements) -> pd.Series:
+def _mask_location(
+    df: pd.DataFrame,
+    requirements: ParsedRequirements,
+    relax: bool = False,
+) -> pd.Series:
     """Match location or district against CSV location, district, and address columns.
 
-    Matching is case-insensitive substring search so 'Kottawa' matches
-    'kottawa road dolekade' in the address column.
+    Supports common location phrases like "near malabe", "malabe city" by stripping
+    qualifiers and performing flexible substring matching.
+
+    In strict mode (relax=False), if a location is provided, it must match.
+    In relaxed mode (relax=True), matching the inferred district is sufficient.
     """
     location = requirements.location
     district = requirements.district
@@ -71,7 +119,19 @@ def _mask_location(df: pd.DataFrame, requirements: ParsedRequirements) -> pd.Ser
 
     mask = pd.Series(False, index=df.index)
 
-    for req_val in filter(None, [location, district]):
+    # In strict mode, if we have a specific location, only search for that.
+    # In relaxed mode (or if we only have a district), we can search for the district.
+    search_terms = []
+    if location:
+        # Normalize location to handle phrases like "near malabe", "malabe city"
+        search_terms.extend(_normalize_location(location))
+        if relax and district:
+            search_terms.extend(_normalize_location(district))
+    elif district:
+        search_terms.extend(_normalize_location(district))
+
+    for req_val in search_terms:
+        # Escape only the core pattern, don't re-escape already normalized terms
         pattern = re.escape(req_val.strip())
         for col in ("location", "district", "address"):
             if col in df.columns:
@@ -168,7 +228,7 @@ def apply_hard_filters(
 
     mask &= _mask_listing_type(df, requirements)
     mask &= _mask_property_type(df, requirements)
-    mask &= _mask_location(df, requirements)
+    mask &= _mask_location(df, requirements, relax=relax)
     mask &= _mask_max_budget(df, requirements, relax=relax)
     mask &= _mask_min_budget(df, requirements)
     mask &= _mask_bedrooms(df, requirements, relax=relax)

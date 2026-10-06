@@ -232,10 +232,18 @@ def extract_budget(text: str) -> dict[str, int | None]:
 
 
 def extract_location(text: str) -> str | None:
+    # 1. Check known Sinhala translations first
     for sinhala_name, normalized_name in KNOWN_SRI_LANKAN_LOCATIONS.items():
         if re.search(rf"{re.escape(sinhala_name)}(?:ින්|ට|වල|අවට|දී)?", text):
             return normalized_name
 
+    # 2. Check known English locations directly
+    lower_text = text.lower()
+    for known_loc in LOCATION_DISTRICTS.keys():
+        if re.search(rf"\b{re.escape(known_loc.lower())}\b", lower_text):
+            return known_loc
+
+    # 3. Sinhala marker match
     sinhala_marker_match = re.search(
         r"\b([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,2})\s*(?:අවට|ලග|ළඟ|තුල|වල)\b",
         text,
@@ -243,16 +251,19 @@ def extract_location(text: str) -> str | None:
     if sinhala_marker_match:
         return sinhala_marker_match.group(1).strip()
 
+    # 4. English preposition match (Strict Capitalization for multi-word, or single word)
     match = re.search(
-        r"\b(?:in|around|near|at|within)\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,2})\b",
+        r"\b(?:in|around|near|at|within|from)\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,2}|[a-zA-Z]+)\b",
         text,
     )
-    if not match:
-        return None
-    location = match.group(1).strip()
-    stop_words = {"and", "with", "below", "under", "for", "to", "that", "determine"}
-    parts = [part for part in location.split() if part.lower() not in stop_words]
-    return " ".join(parts) or None
+    if match:
+        location = match.group(1).strip().title()
+        stop_words = {"and", "with", "below", "under", "for", "to", "that", "determine"}
+        parts = [part for part in location.split() if part.lower() not in stop_words]
+        if parts:
+            return " ".join(parts)
+            
+    return None
 
 
 def infer_district(location: str | None) -> str | None:

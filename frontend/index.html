@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>PropWise AI - Property Assistant</title>
     <link rel="stylesheet" href="styles.css?v=planning-follow-up" />
+    <link rel="stylesheet" href="agent4.css?v=phase3" />
   </head>
   <body>
     <main class="workspace">
@@ -16,6 +17,9 @@
           <label for="query">Property request</label>
           <textarea id="query" name="query" maxlength="2000" rows="7" placeholder="Enter your property request"></textarea>
 
+          <div class="a4-controls">
+            <label><input id="explanation-enabled" type="checkbox" /> Use grounded AI explanations (optional; falls back when unavailable)</label>
+          </div>
           <button id="submit-button" class="submit-button" type="submit">Send</button>
         </form>
       </section>
@@ -38,10 +42,12 @@
         </details>
       </section>
 
+      <section id="recommendation-panel" class="recommendation-panel hidden" aria-live="polite"></section>
+
       <section class="properties-panel hidden" id="properties-panel" aria-live="polite">
         <div class="result-header">
           <div>
-            <p class="eyebrow">Best Options</p>
+            <p class="eyebrow">Supporting Property Evidence</p>
             <h2 id="options-title">Found Properties</h2>
           </div>
           <span id="property-count" class="confidence">0 results</span>
@@ -57,7 +63,7 @@
             <p class="eyebrow">Agent 3</p>
             <h2>Conceptual Plan & Budget</h2>
           </div>
-          <span id="planning-score" class="confidence">0%</span>
+          <span id="planning-score" class="confidence">No layout score</span>
         </div>
 
         <p class="plan-notice">Conceptual AI-assisted plan — not construction-ready.</p>
@@ -82,6 +88,7 @@
       </section>
     </div>
 
-    <script src="app.js?v=agent2-results-30"></script>
+    <script src="app.js?v=agent2-direct"></script>
+    <script src="agent4.js?v=phase3"></script>
   </body>
 </html>

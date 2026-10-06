@@ -1,0 +1,106 @@
+{
+  "test_id": "T02d",
+  "objective": "Location with area suffix",
+  "input": {
+    "original_query": "3 bedroom house in malabe city under 20 million",
+    "intent": "BUY_PROPERTY",
+    "location": "malabe city",
+    "listing_type": "sale",
+    "property_type": "house",
+    "maximum_budget_lkr": 20000000,
+    "bedrooms": 3
+  },
+  "expected_result": "At least 1 result matching Malabe properties",
+  "actual_result": {
+    "results": [
+      {
+        "listing_id": "pr724-valuble-house-for-sale-in-malabe-tunadahena-for-sale-colombo",
+        "title": "(pr724 )Valuble House for Sale in Malabe Tunadahena",
+        "description": "(PR724)VALUBLE HOUSE FOR SALE IN MALABE TUNADAHENA HIGHLY RESIDENTIAL AREA 20 feet access rd 👉 3 BEDROOMS 👉 2 BATHROOM 👉 7.5 PERCHES 👉 1100 SQFT ************...",
+        "district": "Colombo",
+        "location": "Malabe",
+        "address": "MALABE TUNADAHENA",
+        "contact_number": "Not mentioned in ad",
+        "listing_type": "sale",
+        "property_type": "house",
+        "price_lkr": 17500000.0,
+        "price_basis": "total",
+        "sale_total_price_lkr": 17500000.0,
+        "bedrooms": 3.0,
+        "bathrooms": 2.0,
+        "land_size_perches": 7.5,
+        "house_size_sqft": 1100.0,
+        "is_verified": false,
+        "posted_date": "2023-01-25",
+        "geo_region": "LK-11",
+        "membership_level": "premium",
+        "score": 0.6513,
+        "score_breakdown": {
+          "budget_fit": 0.0312,
+          "location": 0.4,
+          "bedrooms": 0.15,
+          "verified": 0.0,
+          "size_fit": 0.05,
+          "recency": 0.02
+        }
+      }
+    ],
+    "total_found": 1,
+    "returned": 1,
+    "relaxed_filters": false,
+    "filters_applied": {
+      "listing_type": "sale",
+      "property_type": "house",
+      "location": "malabe city",
+      "district": null,
+      "max_budget_lkr": 20000000,
+      "max_land_budget_lkr": null,
+      "total_project_budget_lkr": null,
+      "min_budget_lkr": null,
+      "bedrooms_min": 3,
+      "land_size_perches_min": null,
+      "land_size_perches_max": null,
+      "house_size_sqft_min": null,
+      "relaxed": false
+    },
+    "analysis": {
+      "price_stats": {
+        "min_price": 17500000.0,
+        "max_price": 17500000.0,
+        "median_price": 17500000.0,
+        "mean_price": 17500000.0,
+        "count": 1
+      },
+      "budget_fit_pct": 100.0,
+      "district_breakdown": {
+        "Colombo": 1
+      },
+      "verified_count": 0,
+      "property_type_breakdown": {
+        "house": 1
+      }
+    },
+    "warnings": [],
+    "metadata": {
+      "dataset_size": 500,
+      "top_n_requested": 100
+    }
+  },
+  "number_of_results": 1,
+  "top_3_scores": [
+    {
+      "listing_id": "pr724-valuble-house-for-sale-in-malabe-tunadahena-for-sale-colombo",
+      "score": 0.6513,
+      "score_breakdown": {
+        "budget_fit": 0.0312,
+        "location": 0.4,
+        "bedrooms": 0.15,
+        "verified": 0.0,
+        "size_fit": 0.05,
+        "recency": 0.02
+      }
+    }
+  ],
+  "relaxed_filters": false,
+  "warnings": []
+}

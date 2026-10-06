@@ -24,12 +24,49 @@ import pandas as pd
 from app.schemas.requirements import Intent, ParsedRequirements
 
 # ── Weights ──────────────────────────────────────────────────────────────────
-_W_BUDGET = 0.35
-_W_LOCATION = 0.20
+_W_LOCATION = 0.40
+_W_BUDGET = 0.25
 _W_BEDROOMS = 0.15
-_W_VERIFIED = 0.12
 _W_SIZE = 0.10
-_W_RECENCY = 0.08
+_W_VERIFIED = 0.06
+_W_RECENCY = 0.04
+
+# Common location qualifiers to strip when matching
+_LOCATION_QUALIFIERS = {
+    "near", "around", "close to", "vicinity of", "vicinity",
+    "city", "area", "zone", "region", "suburb",
+    "district", "town", "town area",
+}
+
+
+def _normalize_location(location: str) -> list[str]:
+    """Normalize a location phrase to extract searchable terms.
+    
+    Strips common qualifiers and returns both the original term and
+    normalized versions for flexible matching.
+    """
+    if not location:
+        return []
+    
+    normalized = location.strip().lower()
+    result = [normalized]  # Always include the original
+    
+    # Try stripping each qualifier from start or end
+    words = normalized.split()
+    if len(words) > 1:
+        # Strip leading qualifiers
+        while words and words[0] in _LOCATION_QUALIFIERS:
+            words.pop(0)
+        # Strip trailing qualifiers  
+        while words and words[-1] in _LOCATION_QUALIFIERS:
+            words.pop()
+        
+        if words:
+            core_term = " ".join(words)
+            if core_term != normalized:
+                result.append(core_term)
+    
+    return result
 
 
 # ── Individual signal computers ───────────────────────────────────────────────
@@ -56,22 +93,42 @@ def _signal_budget(df: pd.DataFrame, requirements: ParsedRequirements) -> pd.Ser
 
 
 def _signal_location(df: pd.DataFrame, requirements: ParsedRequirements) -> pd.Series:
-    """Exact location match = 1.0, district-only match = 0.5, no match = 0.0."""
-    location = (requirements.location or "").strip().lower()
-    district = (requirements.district or "").strip().lower()
+    """Score location match.
+    
+    Handles location phrases by stripping qualifiers (e.g., "near malabe" -> "malabe").
+    - Exact location match = 1.0
+    - District-only match = 0.5
+    - No match = 0.0
+    """
+    location = (requirements.location or "").strip()
+    district = (requirements.district or "").strip()
 
     signal = pd.Series(0.0, index=df.index)
 
     if location:
+        # Normalize location to handle phrases like "near malabe", "malabe city"
+        location_terms = _normalize_location(location)
         loc_col = df["location"].fillna("").str.lower()
-        signal = signal.where(
-            ~loc_col.str.contains(location, regex=False, na=False),
-            other=1.0,
-        )
+        addr_col = df["address"].fillna("").str.lower() if "address" in df.columns else pd.Series("", index=df.index)
+        
+        # Check any of the normalized terms
+        exact_match = pd.Series(False, index=df.index)
+        for term in location_terms:
+            exact_match |= (loc_col.str.contains(term, regex=False, na=False) | 
+                           addr_col.str.contains(term, regex=False, na=False))
+        
+        signal = signal.where(~exact_match, other=1.0)
 
     if district:
+        # Normalize district as well
+        district_terms = _normalize_location(district)
         dist_col = df["district"].fillna("").str.lower()
-        district_match = dist_col.str.contains(district, regex=False, na=False)
+        
+        # Check any of the normalized terms
+        district_match = pd.Series(False, index=df.index)
+        for term in district_terms:
+            district_match |= dist_col.str.contains(term, regex=False, na=False)
+        
         # Only apply district score where location score isn't already 1.0
         signal = signal.where(~(district_match & (signal < 1.0)), other=0.5)
 

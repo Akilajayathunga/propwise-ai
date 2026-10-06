@@ -1,0 +1,62 @@
+{
+  "test_id": "T10",
+  "objective": "",
+  "input": {
+    "original_query": "land query",
+    "intent": "BUY_LAND",
+    "location": "Colombo",
+    "listing_type": "sale",
+    "property_type": "land",
+    "maximum_budget_lkr": 50000000,
+    "minimum_land_size_perches": 10,
+    "maximum_land_size_perches": 30
+  },
+  "expected_result": "NOT VERIFIED",
+  "actual_result": {
+    "results": [],
+    "total_found": 42,
+    "returned": 0,
+    "relaxed_filters": false,
+    "filters_applied": {
+      "listing_type": "sale",
+      "property_type": "land",
+      "location": "Colombo",
+      "district": null,
+      "max_budget_lkr": 50000000,
+      "max_land_budget_lkr": null,
+      "total_project_budget_lkr": null,
+      "min_budget_lkr": null,
+      "bedrooms_min": null,
+      "land_size_perches_min": 10.0,
+      "land_size_perches_max": 30.0,
+      "house_size_sqft_min": null,
+      "relaxed": false
+    },
+    "analysis": {
+      "price_stats": {
+        "min_price": 1875000.0,
+        "max_price": 49088750.0,
+        "median_price": 3795000.0,
+        "mean_price": 8626172.62,
+        "count": 42
+      },
+      "budget_fit_pct": 100.0,
+      "district_breakdown": {
+        "Colombo": 42
+      },
+      "verified_count": 32,
+      "property_type_breakdown": {
+        "land": 42
+      }
+    },
+    "warnings": [],
+    "metadata": {
+      "dataset_size": 500,
+      "top_n_requested": 100
+    }
+  },
+  "number_of_results": 0,
+  "top_3_scores": [],
+  "relaxed_filters": false,
+  "warnings": []
+}
