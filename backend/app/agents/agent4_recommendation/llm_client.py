@@ -2,6 +2,7 @@
 import json
 import re
 import time
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Protocol
 from urllib.parse import quote
@@ -12,6 +13,60 @@ from pydantic import SecretStr
 
 class ProviderError(RuntimeError):
     """Only sanitized application error codes cross this boundary."""
+
+
+class ProviderHTTPError(ProviderError):
+    """Internal status-only diagnostics; public fallback remains generic.
+
+    Do not attach response/request objects or provider messages to this error.
+    """
+
+    def __init__(self, status_code: int):
+        super().__init__("PROVIDER_HTTP_ERROR")
+        self.status_code = status_code
+        self.category = {
+            400: "INVALID_REQUEST",
+            401: "AUTHENTICATION",
+            403: "PERMISSION",
+            429: "RATE_LIMIT",
+        }.get(status_code, "PROVIDER_FAILURE" if 500 <= status_code < 600 else "OTHER_HTTP_ERROR")
+
+
+def normalize_gemini_schema(schema: dict) -> dict:
+    """Copy the schema for Gemini; local Pydantic validation stays authoritative.
+
+    Omit string-length keywords outside Gemini's documented subset. For the
+    ExplanationDraft contract only, also omit two root array upper bounds:
+    live isolation returned 400 with either bound alone removed, but 200 with
+    both removed (Gemini 3.1 Flash-Lite). Inlining references did not fix the
+    full schema. This is a full-schema complexity workaround, not a claim that
+    Gemini rejects maxItems generally; all other array bounds stay intact.
+    Traverse schema positions, not property names or enum/metadata values.
+    https://ai.google.dev/api/generate-content#GenerationConfig
+    """
+    result = deepcopy(schema)
+
+    def visit(node):
+        if not isinstance(node, dict):
+            return
+        node.pop("minLength", None)
+        node.pop("maxLength", None)
+        for key in ("$defs", "properties"):
+            for child in node.get(key, {}).values():
+                visit(child)
+        for key in ("items", "additionalProperties"):
+            visit(node.get(key))
+        for key in ("anyOf", "oneOf", "prefixItems"):
+            for child in node.get(key, []):
+                visit(child)
+
+    visit(result)
+    if result.get("title") == "ExplanationDraft":
+        for name in ("properties", "comparison_summary"):
+            array = result.get("properties", {}).get(name, {})
+            if array.get("type") == "array":
+                array.pop("maxItems", None)
+    return result
 
 
 class ExplanationProvider(Protocol):
@@ -77,17 +132,18 @@ class HTTPExplanationProvider:
             headers = {"x-goog-api-key": key}
             body = {"systemInstruction": {"parts": [{"text": system_prompt}]},
                     "contents": [{"role": "user", "parts": [{"text": evidence_json}]}],
-                    "generationConfig": {"responseMimeType": "application/json",
-                                         "responseJsonSchema": output_schema,
-                                         "maxOutputTokens": cfg.max_output_tokens,
-                                         "candidateCount": 1}}
+                    # Current generateContent structured-output format. The default
+                    # is one candidate; do not send candidateCount to Gemini 3.x.
+                    "generationConfig": {"responseFormat": {
+                        "text": {"mimeType": "APPLICATION_JSON", "schema": normalize_gemini_schema(output_schema)}},
+                        "maxOutputTokens": cfg.max_output_tokens}}
         try:
             started = time.monotonic()
             with httpx.Client(timeout=cfg.timeout_seconds, follow_redirects=False,
                               trust_env=False, transport=self._transport) as client:
                 with client.stream("POST", url, headers=headers, json=body) as response:
                     if not 200 <= response.status_code < 300:
-                        raise ProviderError("PROVIDER_HTTP_ERROR")
+                        raise ProviderHTTPError(response.status_code)
                     content = bytearray()
                     for chunk in response.iter_bytes(chunk_size=8192):
                         if time.monotonic() - started > cfg.timeout_seconds:

@@ -142,7 +142,25 @@ def build_evidence(context: RecommendationContext, response: RecommendationRespo
     register("notice", data["required_notices"])
     data["facts"] = {ref: {"value": fact["value"]} for ref, fact in facts.items()}
     encoded = json.dumps(data, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
-    # Do not silently truncate material warnings or decision evidence.
+    if len(encoded.encode("utf-8")) > max_bytes:
+        # Keep the complete internal structure and owner-aware facts for validation.
+        # Only the model-facing wire representation omits duplicate detail copies.
+        wire = dict(data)
+        wire["items"] = [
+            {**{key: item[key] for key in ("alias", "role", "listing_id", "rank",
+                                         "final_recommendation_score", "eligibility")},
+             "budget": {"status": item["budget"]["status"]},
+             "planning": {"constraints_satisfied": item["planning"]["constraints_satisfied"]}
+                         if item["planning"] else None}
+            for item in data["items"]
+        ]
+        # Every detailed scalar, including warnings/assumptions, remains citable
+        # at exactly its original reference. Ownership stays in package.facts.
+        wire["facts"] = {ref: fact["value"] for ref, fact in facts.items()}
+        del wire["required_notices"]
+        wire["required_notice_refs"] = [ref for ref in facts if ref.startswith("notice.")]
+        encoded = json.dumps(wire, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+    # Compaction is lossless, not truncation; legitimately oversized data fails.
     if len(encoded.encode("utf-8")) > max_bytes:
         raise EvidenceError("EVIDENCE_TOO_LARGE")
     return EvidencePackage(data=data, facts=facts, json_text=encoded)

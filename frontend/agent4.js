@@ -1,206 +1,581 @@
-/* Agent 4 display only. All decisions and provider calls belong to the server. */
 (() => {
   "use strict";
+
   const panel = () => document.querySelector("#recommendation-panel");
-  const label = (value) => String(value ?? "Unknown").replaceAll("_", " ").toLowerCase();
-  const el = (tag, text, className = "") => {
-    const node = document.createElement(tag);
-    if (text !== undefined && text !== null) node.textContent = String(text);
-    if (className) node.className = className;
-    return node;
-  };
-  function list(parent, heading, values) {
-    if (!Array.isArray(values) || !values.length) return;
-    parent.appendChild(el("h4", heading));
-    const ul = el("ul");
-    values.forEach(value => ul.appendChild(el("li", value)));
-    parent.appendChild(ul);
+
+  function node(tag, text, className) {
+    const item = document.createElement(tag);
+    if (text != null) item.textContent = String(text);
+    if (className) item.className = className;
+    return item;
   }
-  function details(parent, heading, values) {
-    if (!Array.isArray(values) || !values.length) return;
-    const block = el("details", null, "a4-details");
-    block.appendChild(el("summary", heading));
-    list(block, "", values);
-    parent.appendChild(block);
+
+  let listingNames = new Map();
+  function cleanText(value) {
+    let text = String(value || "");
+    for (const [id, title] of listingNames) text = text.replaceAll(id, title);
+    // Technical numeric prose stays in the API; money below uses structured fields.
+    if (/\b\d+(?:\.\d+)?e[+-]\d+\b/i.test(text)) return "";
+    return text
+      .replace(/\b[A-Z]+(?:_[A-Z]+)+\b/g, value => value.toLowerCase().replaceAll("_", " "))
+      .replace(/\b(listing_type|property_type)\b/g, value => value.replaceAll("_", " "))
+      .replace(/Agent 1/gi, "requirement parsing")
+      .replace(/Agent 2/gi, "the search")
+      .replace(/Agent 3/gi, "planning")
+      .replace(/Agent 4/gi, "the assessment")
+      .replace(/upstream/gi, "earlier")
+      .replace(/retrieval/gi, "search")
+      .replace(/\.{2,}(?=\s|$)/g, ".");
   }
-  function grid(parent, entries) {
-    const node = el("div", null, "field-grid");
-    entries.forEach(([key, value]) => node.appendChild(summaryItem(key, value)));
-    parent.appendChild(node);
+
+  function friendlyType(value) {
+    return String(value || "property").replaceAll("_", " ");
   }
-  function range(value) {
-    if (!value) return "Unknown";
-    return `${formatMoney(value.low_lkr)} / ${formatMoney(value.expected_lkr)} / ${formatMoney(value.high_lkr)}`;
+
+  function budgetStatus(status) {
+    return {
+      WITHIN_BUDGET: "Within budget",
+      POTENTIALLY_FEASIBLE: "Potentially within budget",
+      TIGHT_BUDGET: "Budget is tight",
+      ABOVE_BUDGET: "Over budget",
+    }[status] || "";
   }
-  function budget(parent, value) {
-    if (!value) return;
-    grid(parent, [
-      ["Budget assessment", label(value.status)],
-      ["Price basis", label(value.basis)],
-      ["Original budget", formatMoney(value.budget_lkr)],
-      [value.basis === "MONTHLY_RENT" ? "Monthly rent" : "Property / land price", formatMoney(value.price_lkr)],
-      ["Construction: low / expected / high", range(value.construction)],
-      ["Project: low / expected / high", range(value.total_project)],
-      ["Expected budget margin", formatMoney(value.expected_margin_lkr)],
-    ]);
-    if (!value.authoritative) parent.appendChild(el("p", "Affordability evidence is unavailable or unverified.", "plan-notice"));
-    list(parent, "Excluded costs", value.not_included);
-  }
-  function planning(parent, value) {
-    if (!value) return;
-    grid(parent, [
-      ["Generated layout", value.constraints_satisfied === true ? "Passed conceptual checks" : value.constraints_satisfied === false ? "Failed conceptual checks" : "Unknown"],
-      ["Layout quality", value.layout_score == null ? "Unknown" : `${Number(value.layout_score).toFixed(1)} / 100`],
-      ["Site fit", value.exact_site_fit_verified === true ? "Upstream conceptual fit flag; review dimensions and limitations" : "Not verified"],
-      ["Site width / length", `${formatValue(value.width_ft)} / ${formatValue(value.length_ft)} ft`],
-    ]);
-    list(parent, "Planning assumptions", value.assumptions);
-    list(parent, "Planning warnings", value.warnings);
-    parent.appendChild(el("p", value.disclaimer || "Conceptual planning only. Construction estimates are preliminary, not quotations. Professional site and design review is required.", "plan-notice"));
-  }
-  function criteria(parent, values) {
-    const block = el("details", null, "a4-details");
-    block.appendChild(el("summary", "Why this decision-support score?"));
-    const table = el("table", null, "budget-table");
-    const header = el("tr");
-    ["Criterion", "Weight", "Contribution", "Evidence"].forEach(text => header.appendChild(el("th", text)));
-    table.appendChild(header);
-    (values || []).forEach(value => {
-      const row = el("tr");
-      [label(value.criterion), `${(value.weight * 100).toFixed(1)}%`,
-        Number(value.contribution).toFixed(2), label(value.evidence_status)].forEach(text => row.appendChild(el("td", text)));
-      table.appendChild(row);
-      block.appendChild(el("p", `${label(value.criterion)}: ${value.explanation}`, "muted"));
-    });
-    block.insertBefore(table, block.children[1] || null);
-    parent.appendChild(block);
-  }
-  function adOption(raw) {
-    const features = Array.isArray(raw.features) ? raw.features : String(raw.features || "").split(",").map(x => x.trim()).filter(Boolean);
-    return { property: { ...raw, features, agent2_score: raw.score, full_ad: raw } };
-  }
-  function recommendationCard(item, raw, option, explanation, recommended) {
-    const card = el("article", null, "a4-card");
-    card.appendChild(el("p", recommended ? `Final rank ${item.rank}` : "Alternative / outside shortlist", "eyebrow"));
-    card.appendChild(el("h3", item.title || item.listing_id));
-    card.appendChild(el("p", `Listing ${item.listing_id} — ${label(item.eligibility)}`, "muted"));
-    card.appendChild(el("p", `Decision-support score: ${Number(item.final_recommendation_score).toFixed(1)} / 100`, "a4-score"));
-    if (explanation) {
-      card.appendChild(el("p", explanation.reason));
-      list(card, "Explanation strengths", explanation.strengths);
-      list(card, "Explanation trade-offs", explanation.trade_offs);
+
+  const eligibilityLabel = value => ({
+    ELIGIBLE: "Meets assessed criteria", CONDITIONAL: "Needs review",
+    HARD_CONSTRAINT_VIOLATION: "Outside your criteria", INSUFFICIENT_EVIDENCE: "Not enough evidence",
+  }[value] || "Not assessed");
+  const displayEnum = value => String(value ?? "Unknown").toLowerCase().replaceAll("_", " ");
+  const sentenceCase = value => value.charAt(0).toUpperCase() + value.slice(1);
+  const budgetBasis = value => ({ SALE_TOTAL: "Purchase price", MONTHLY_RENT: "Monthly rent",
+    TOTAL_PROJECT: "Total project", CONSTRUCTION: "Construction" }[value] || "Unknown");
+
+  function constraintText(check) {
+    const label = check.requirement || "Requirement";
+    if (check.status === "SATISFIED") return `Satisfied: ${label}`;
+    if (check.status === "VIOLATED") {
+      if (/^Generated layout satisfies (?:Agent 3|planning) constraints$/i.test(label)) return "The conceptual layout does not satisfy the planning constraints.";
+      const location = /^location matches (.+)$/i.exec(label);
+      if (location) return `Does not match the requested location: ${location[1]}`;
+      return `Not satisfied: ${label}`;
     }
-    budget(card, item.budget);
-    list(card, "Strengths", item.strengths);
-    list(card, "Trade-offs", item.trade_offs);
-    list(card, "Unmet requirements", item.unmet_requirements);
-    list(card, "Uncertainty", item.uncertainty);
-    details(card, "Warnings", item.warnings);
-    planning(card, item.planning);
-    criteria(card, item.criteria);
-    const actions = el("div", null, "option-actions");
-    if (raw) actions.appendChild(actionButton("View property details", () => openAdDetailsModal(adOption(raw))));
-    if (option) {
-      actions.appendChild(actionButton("View conceptual plan", () => openOptionModal(option)));
-      actions.appendChild(actionButton("View budget report", () => openBudgetSummaryModal(option)));
-      const preview = firstPlanUrl(option.planning?.png_url || option.planning?.svg_url);
-      if (preview) {
-        const image = el("img", null, "a4-preview");
-        image.src = preview;
-        image.alt = "Conceptual floor plan; not construction-ready";
-        image.loading = "lazy";
-        card.appendChild(image);
+    if (label === "Site dimensions and fit are evidenced") return "Exact site dimensions are not confirmed";
+    return `Not confirmed: ${label}`;
+  }
+
+  function requirementText(item, value) {
+    const check = (item.constraint_checks || []).find(check => check.requirement === value);
+    return cleanText(check ? constraintText(check) : value);
+  }
+
+  function concise(value) {
+    const text = cleanText(value);
+    const sentences = text.split(/(?<=[.!?])\s+/);
+    const short = sentences.slice(0, 2).join(" ").trim();
+    return short.length <= 600 ? short : "";
+  }
+
+  // Conservative sentence-level display deduplication, never response mutation.
+  const proseKey = value => cleanText(value).replace(/^(?:recorded evidence|limitation|warning|satisfied):\s*/i, "")
+    .toLowerCase().replace(/[.!?]+$/, "").trim();
+
+  function onlyVisibleMetadata(key) {
+    // Match complete metadata clauses, not sentences that add a reason or caveat.
+    return key.split(/\s*(?:;|,|\band\b)\s*/).every(part =>
+      /^(?:(?:deterministic|final|recorded|recommendation) )?(?:rank(?:ed)?|(?:decision[- ]support )?(?:index|score))\s*(?::|is|of|=|#)?\s*\d+(?:\.\d+)?(?:\s*(?:\/|out of)\s*100)?$/.test(part)
+      || /^(?:(?:recorded |assessed |assessment )?(?:eligibility|status|budget status|budget assessment)\s*(?::|is)\s*|(?:the )?(?:supplied |deterministic )?assessment is\s+|(?:this|the) (?:option|property|recommendation) is\s+)?(?:conditional|eligible|needs review|outside your criteria|hard[- ]constraint violation|insufficient evidence|no suitable option|recommendations ready|within budget|above budget|potentially feasible|complete|ready|ok)$/.test(part)
+    );
+  }
+
+  function machineProse(value) {
+    const raw = String(value || "").trim().replace(/[.!?]+$/, "");
+    const key = proseKey(raw);
+    // Complete field/value fragments and internal identifiers, not keyword matches
+    // inside ordinary sentences. Local API/guardrail validation remains unchanged.
+    return onlyVisibleMetadata(key)
+      || /^(?:[a-z][\w -]*\s*:\s*)?(?:true|false|null)$/i.test(raw)
+      || /^(?:[a-z][\w -]*\s*:\s*)?[A-Za-z]+(?:_[A-Za-z]+)+$/.test(raw)
+      || (/^(?:recorded|internal|debug) [\w -]+\s*:/i.test(raw) && !/\b(?:but|although|because|however|while|and)\b/i.test(raw))
+      || /^[A-Z]+(?:_[A-Z]+)*$/.test(raw);
+  }
+
+  function structuredReason(item) {
+    if (!item || !["ELIGIBLE", "CONDITIONAL"].includes(item.eligibility)) return "";
+    const checks = item.constraint_checks || [];
+    const budget = item.budget || {};
+    const planning = item.planning;
+    const positives = [], limits = [];
+    const moneyKnown = value => typeof value === "number" && Number.isFinite(value);
+    const expected = budget.basis === "TOTAL_PROJECT" ? budget.total_project?.expected_lkr
+      : budget.basis === "CONSTRUCTION" ? budget.construction?.expected_lkr : budget.price_lkr;
+    const costLabel = budget.basis === "TOTAL_PROJECT" ? "the expected project cost"
+      : budget.basis === "CONSTRUCTION" ? "the expected construction cost"
+      : budget.basis === "MONTHLY_RENT" ? "the monthly rent" : "the property price";
+    const budgetChecks = checks.filter(check => check.criterion === "budget");
+    const usableBudget = budget.authoritative === true && moneyKnown(expected) && moneyKnown(budget.budget_lkr);
+    if (usableBudget && expected <= budget.budget_lkr
+      && ["WITHIN_BUDGET", "POTENTIALLY_FEASIBLE", "TIGHT_BUDGET"].includes(budget.status)
+      && budgetChecks.every(check => check.status === "SATISFIED")) {
+      positives.push(`${costLabel} is within your ${formatMoney(budget.budget_lkr)} budget`);
+    }
+    if (budget.status === "ABOVE_BUDGET" || (usableBudget && expected > budget.budget_lkr)) {
+      limits.push("the budget assessment flags an over-budget cost");
+    } else {
+      const high = (budget.total_project || budget.construction)?.high_lkr;
+      if (budget.authoritative === true && moneyKnown(high) && moneyKnown(budget.budget_lkr) && high > budget.budget_lkr)
+        limits.push("the high-cost estimate may exceed your budget");
+    }
+    const location = checks.filter(check => /^location matches /i.test(check.requirement));
+    if (location.length && location.every(check => check.status === "SATISFIED")) positives.push("the requested location matches");
+    else if (location.some(check => check.status === "VIOLATED")) limits.push("the requested location is not met");
+    const rooms = checks.filter(check => /^(?:bedrooms|bathrooms|floors) at least /i.test(check.requirement));
+    if (rooms.length && rooms.every(check => check.status === "SATISFIED") && (!planning || planning.constraints_satisfied === true))
+      positives.push("the assessed room requirements are met");
+    if (planning?.constraints_satisfied === false) limits.push("the conceptual layout does not satisfy the planning constraints");
+    if (planning && planning.exact_site_fit_verified !== true) limits.push("exact site fit is not confirmed");
+    const sentence = clauses => clauses.length ? sentenceCase(clauses.join(" and ")) + "." : "";
+    return [sentence(positives.slice(0, 3)), sentence(limits.slice(0, 2))].filter(Boolean).join(" ");
+  }
+
+  function usefulProse(value, visible = []) {
+    const known = new Set(visible.map(proseKey));
+    const text = String(value || "").replace(/\.{2,}(?=\s|$)/g, ".");
+    return text.split(/(?<=[.!?])\s+/).filter(sentence => !machineProse(sentence)).map(concise).filter(Boolean).slice(0, 2).filter(sentence => {
+      const key = proseKey(sentence);
+      if (known.has(key)) return false;
+      if (onlyVisibleMetadata(key)) return false;
+      if (/^(?:based on|recommendation scope: based on|best among) (?:the )?evaluated (?:retrieved )?candidates(?: only|; not the entire property market)?$/.test(key)) return false;
+      return true;
+    }).map(sentence => sentence.replace(/^(?:Recorded evidence|Limitation):\s*/i, "")).join(" ");
+  }
+
+  function usefulComparison(value, comparisons) {
+    const text = usefulProse(value);
+    return text.split(/(?<=[.!?])\s+/).filter(sentence => {
+      if (/^Recorded comparison\s*:/i.test(sentence)) return false;
+      if (comparisons?.length && /^(?:The )?(?:first|second) option(?:'s expected (?:total project )?cost is approximately LKR [\d,.-]+ (?:higher|lower)| scores [\d.]+ points (?:higher|lower))\.?$/i.test(sentence)) return false;
+      return true;
+    }).join(" ");
+  }
+
+  function actionSteps(values) {
+    return (values || []).map(concise).filter(text =>
+      /^(?:please\s+|you (?:should|can)\s+)?(?:confirm|verify|obtain|compare|review|consult|check|request|arrange|ask|visit|measure|clarify|seek|contact)\b/i.test(text)
+    ).slice(0, 3);
+  }
+
+  function mainStrength(item, value) {
+    const check = (item.constraint_checks || []).find(check => check.requirement === value);
+    if (check && check.status !== "SATISFIED") return requirementText(item, value);
+    const text = cleanText(value).replace(/^Satisfied:\s*/i, "").replace(/^(bedrooms|bathrooms|floors) at least (.+)$/i, "At least $2 $1");
+    return sentenceCase(text);
+  }
+
+  // Select warning concepts, not the first few candidate-prefixed strings.
+  function importantNotes(items, warnings = []) {
+    const allWarnings = [...warnings, ...items.flatMap(item => [
+      ...(item.warnings || []), ...(item.uncertainty || []), ...(item.trade_offs || []),
+      ...(item.planning?.warnings || []),
+    ])].join(" ");
+    const notes = [];
+    const aboveBudget = items.some(item => item.budget?.status === "ABOVE_BUDGET");
+    if (items.some(item => {
+      const budget = item.budget || {};
+      const high = (budget.total_project || budget.construction)?.high_lkr;
+      return budget.budget_lkr != null && high != null && high > budget.budget_lkr;
+    }) || /high (?:construction\/project cost |cost |estimate|scenario).*exceeds? (?:the original |the )?budget/i.test(allWarnings))
+      notes.push(`${aboveBudget ? "Some evaluated costs already exceed your budget. " : ""}The high-cost scenario may exceed your budget.`);
+    else if (aboveBudget) notes.push("Some evaluated costs exceed the original budget.");
+    if (items.some(item => item.planning && item.planning.exact_site_fit_verified !== true) || /exact (?:plot |site )?(?:dimensions.*unavailable|site fit cannot be confirmed)/i.test(allWarnings))
+      notes.push("Exact site dimensions are not confirmed; exact site fit cannot be confirmed.");
+    if (/availability.*not.*verified|historical listing/i.test(allWarnings))
+      notes.push("Listing availability and claims have not been independently verified.");
+    if (items.some(item => item.planning || item.budget?.construction) || /preliminary|not a contractor quotation/i.test(allWarnings))
+      notes.push("Construction estimates are preliminary, not quotations; conceptual plans are not professional approval.");
+    if (/relaxed|broadened|strict constraints yielded no results/i.test(allWarnings))
+      notes.push("The search was broadened; options were still assessed against your original requirements.");
+    return notes.slice(0, 5);
+  }
+
+  function considerationsFor(item) {
+    const failed = (item.constraint_checks || []).filter(check => check.status === "VIOLATED").map(constraintText);
+    const failure = item.planning?.constraints_satisfied === false ? ["The conceptual layout does not satisfy the planning constraints."] : [];
+    const notes = importantNotes([item]);
+    const unknown = (item.constraint_checks || []).filter(check => check.status === "UNKNOWN").map(constraintText);
+    return [...new Set([...failed, ...failure, ...notes, ...unknown].map(cleanText).filter(Boolean))].slice(0, 4);
+  }
+
+  function keyStrengths(item) {
+    const priorities = [/location matches/i, /bedrooms/i, /district matches/i, /expected cost fits/i, /bathrooms|floors/i];
+    const values = [...new Set(item.strengths || [])];
+    const priority = value => { const index = priorities.findIndex(pattern => pattern.test(value)); return index < 0 ? priorities.length : index; };
+    return values.sort((a, b) => priority(a) - priority(b)).map(value => mainStrength(item, value)).filter(Boolean).slice(0, 3);
+  }
+
+  function displayList(parent, heading, values) {
+    const unique = [...new Set((values || []).filter(Boolean).map(cleanText).filter(Boolean))];
+    if (!unique.length) return;
+    parent.appendChild(node("h4", heading));
+    const list = node("ul");
+    unique.forEach(value => list.appendChild(node("li", value)));
+    parent.appendChild(list);
+  }
+
+  function displayFacts(parent, pairs) {
+    const list = node("dl", null, "decision-facts");
+    pairs.filter(([, value]) => value != null).forEach(([label, value]) => {
+      list.append(node("dt", label), node("dd", value));
+    });
+    parent.appendChild(list);
+  }
+
+  function decisionDetails(parent, item, explanation, alternative = false) {
+    const details = node("details", null, "pick-details decision-support-details");
+    details.appendChild(node("summary", alternative ? "Why not shortlisted?" : "Why this option?"));
+    displayFacts(details, [
+      ["Final rank", alternative ? null : item.rank],
+      ["Decision-support score", (alternative && item.eligibility === "HARD_CONSTRAINT_VIOLATION") || item.final_recommendation_score == null ? null : `${item.final_recommendation_score.toFixed(1)} / 100`],
+      ["Eligibility", eligibilityLabel(item.eligibility)],
+    ]);
+    if (alternative) displayList(details, "Unmet requirements", (item.constraint_checks || [])
+      .filter(check => check.status === "VIOLATED").map(constraintText).slice(0, 2));
+    if (!alternative) {
+      if (item.criteria?.length) {
+        details.appendChild(node("h4", "Score breakdown"));
+        displayFacts(details, item.criteria.map(value => [sentenceCase(displayEnum(value.criterion)), `${(value.normalized_score * 100).toFixed(1)} / 100`]));
+      }
+      const budget = item.budget || {};
+      const money = value => value == null ? "Unknown" : formatMoney(value);
+      const project = budget.basis === "TOTAL_PROJECT";
+      const construction = budget.basis === "CONSTRUCTION";
+      details.appendChild(node("h4", "Budget"));
+      displayFacts(details, [
+        [project ? "Total budget" : construction ? "Construction budget" : budget.basis === "MONTHLY_RENT" ? "Monthly budget" : "User budget", money(budget.budget_lkr)],
+        [project ? "Land price" : "Property price", construction ? null : money(budget.price_lkr)],
+        ["Expected construction cost", project || construction ? money(budget.construction?.expected_lkr) : null],
+        ["Expected project total", project ? money(budget.total_project?.expected_lkr) : null],
+        ["Budget status", budgetStatus(budget.status) || "Unknown"],
+        ["Expected remaining budget", budget.expected_margin_lkr == null ? null : money(budget.expected_margin_lkr)],
+        [project ? "High project estimate" : "High construction estimate", project ? money(budget.total_project?.high_lkr) : construction ? money(budget.construction?.high_lkr) : null],
+      ]);
+      // Detailed exclusions and cost ranges remain in View budget / the API.
+      const planning = item.planning;
+      if (planning) {
+        details.appendChild(node("h4", "Conceptual plan"));
+        displayFacts(details, [
+          ["Layout score", planning.layout_score == null ? "Unknown" : `${planning.layout_score} / 100`],
+          ["Exact site fit", planning.exact_site_fit_verified === true ? "Evidenced in the conceptual assessment, not professional approval" : "Not confirmed"],
+          ["Land area", planning.land_size_perches == null ? "Unknown" : `${planning.land_size_perches} perches`],
+          ["Width", planning.width_ft == null ? null : `${planning.width_ft} ft`],
+          ["Length", planning.length_ft == null ? null : `${planning.length_ft} ft`],
+        ]);
       }
     }
-    card.appendChild(actions);
-    details(card, "Upstream evidence (not the final ranking)", [
-      `Retrieval relevance: ${item.upstream_retrieval_relevance_score} / 1`,
-      `Upstream combination index: ${item.upstream_combination_score ?? "Not applicable"}`,
+    if (explanation) {
+      const visible = [...keyStrengths(item), ...(item.strengths || []), ...considerationsFor(item),
+        ...(item.trade_offs || []), ...(item.unmet_requirements || []), ...(item.uncertainty || [])];
+      const additional = values => [...new Set((values || []).map(value => usefulProse(value, visible)).filter(Boolean))];
+      const reason = usefulProse(explanation.reason, visible);
+      if (reason) details.appendChild(node("p", reason));
+      if (!alternative) {
+        displayList(details, "Further strengths", additional(explanation.strengths).slice(0, 2));
+        displayList(details, "Further trade-offs", additional(explanation.trade_offs).slice(0, 2));
+      }
+    }
+    parent.appendChild(details);
+  }
+
+  function assessmentCoverage(parent, coverage) {
+    if (!coverage) return;
+    const details = node("details", null, "results-notes assessment-coverage");
+    details.appendChild(node("summary", "Assessment coverage"));
+    displayFacts(details, [
+      ["Retrieved", `${coverage.retrieved_count ?? "Unknown"} of ${coverage.total_matching_candidates ?? "unknown"} matching`],
+      ["Planning-assessed", coverage.planning_assessed_count],
+      ["Ranked", coverage.ranked_count],
     ]);
+    if (coverage.retrieval_truncated) details.appendChild(node("p", "Retrieval covered only part of the matching candidates."));
+    if (coverage.planning_coverage_limited) details.appendChild(node("p", "Some retrieved candidates were not assessed by planning."));
+    details.appendChild(node("p", "Based on the evaluated candidates only."));
+    parent.appendChild(details);
+  }
+
+  function optionDetails(item, raw, option, explanation, index, alternative, featured = false) {
+    const property = raw || option?.property?.full_ad || option?.property || {};
+    const card = node("article", null, "pick-card");
+    const main = featured ? node("div", null, "pick-main") : card;
+    const side = featured ? node("div", null, "pick-aside") : card;
+    const top = node("div", null, "pick-topline");
+    top.appendChild(node("span", alternative ? "Another option" : item.rank === 1 ? "Top pick" : item.rank != null ? `Pick ${item.rank}` : "Recommended option", "pick-label"));
+    top.appendChild(node("span", eligibilityLabel(item.eligibility), "pick-condition"));
+    main.appendChild(top);
+
+    const planImage = firstPlanUrl(option?.planning?.png_url || option?.planning?.svg_url);
+    const identity = node("div", null, "pick-identity");
+    if (planImage) {
+      card.classList.add("pick-card--plan");
+      const media = node("button", null, "pick-plan-preview");
+      media.type = "button";
+      media.setAttribute("aria-label", `View plan for ${item.title || "this property"}`);
+      const image = node("img");
+      image.src = planImage;
+      image.alt = "Conceptual floor plan";
+      image.loading = "lazy";
+      media.appendChild(image);
+      media.addEventListener("click", () => openOptionModal(option));
+      identity.appendChild(media);
+    }
+
+    identity.appendChild(node("h3", item.title || property.title || "Property"));
+    const location = [property.location, property.district].filter(Boolean).join(", ");
+    const meta = [location, friendlyType(property.property_type), property.listing_type === "rent" ? "For rent" : "For sale"].filter(Boolean).join("  /  ");
+    identity.appendChild(node("p", meta, "pick-meta"));
+
+    const facts = [
+      property.bedrooms != null ? `${property.bedrooms} beds` : null,
+      property.bathrooms != null ? `${property.bathrooms} baths` : null,
+      property.land_size_perches != null ? `${property.land_size_perches} perches` : null,
+      property.house_size_sqft != null ? `${property.house_size_sqft} sqft` : null,
+    ].filter(Boolean);
+    if (facts.length) {
+      const factList = node("div", null, "pick-facts");
+      facts.forEach(value => factList.appendChild(node("span", value)));
+      identity.appendChild(factList);
+    }
+
+    if (property.is_verified) identity.appendChild(node("p", "Source marked verified; not independently checked by PropWise.", "pick-meta"));
+    main.appendChild(identity);
+
+    const expectedProject = item.budget?.total_project?.expected_lkr;
+    const amount = item.budget?.basis === "TOTAL_PROJECT" && expectedProject != null
+      ? expectedProject
+      : item.budget?.price_lkr ?? property.rent_monthly_lkr ?? property.sale_total_price_lkr ?? property.land_price_lkr;
+    if (amount != null) {
+      const label = item.budget?.basis === "TOTAL_PROJECT" ? (expectedProject != null ? "Estimated project total" : "Land price; project estimate unavailable")
+        : property.listing_type === "rent" ? "Monthly rent" : "Asking price";
+      const price = node("div", null, "pick-price");
+      const money = formatMoney(amount);
+      const value = node("strong");
+      if (money.startsWith("LKR ")) {
+        value.append(node("small", "LKR"), node("span", money.slice(4), "amount"));
+      } else {
+        value.textContent = money;
+      }
+      price.append(node("span", label), value);
+      side.appendChild(price);
+    }
+
+    const fit = budgetStatus(item.budget?.status);
+    if (fit) side.appendChild(node("span", fit, `budget-pill ${String(item.budget.status).toLowerCase().replaceAll("_", "-")}`));
+
+    const strengths = keyStrengths(item);
+    if (strengths.length) {
+      const list = node("ul", null, "pick-highlights");
+      strengths.forEach(value => list.appendChild(node("li", value)));
+      main.appendChild(list);
+    }
+
+    const considerations = considerationsFor(item);
+    if (considerations.length) {
+      const details = node("details", null, "pick-details");
+      details.appendChild(node("summary", "What to consider"));
+      const list = node("ul");
+      considerations.forEach(value => list.appendChild(node("li", value)));
+      details.appendChild(list);
+      main.appendChild(details);
+    }
+
+    decisionDetails(main, item, explanation, alternative);
+
+    const actions = node("div", null, "pick-actions");
+    if (raw || option) {
+      const source = option || {
+        property: {
+          ...raw,
+          features: Array.isArray(raw.features) ? raw.features : String(raw.features || "").split(",").map(value => value.trim()).filter(Boolean),
+          full_ad: raw,
+        },
+      };
+      actions.appendChild(actionButton("View listing", () => openAdDetailsModal(source)));
+    }
+    if (option) {
+      actions.appendChild(actionButton("View plan", () => openOptionModal(option)));
+      actions.appendChild(actionButton("View budget", () => openBudgetSummaryModal(option)));
+    }
+    side.appendChild(actions);
+    if (featured) card.append(main, side);
     return card;
   }
+
+  function noteList(parent, heading, values) {
+    const unique = [...new Set((values || []).filter(Boolean).map(cleanText).filter(Boolean))];
+    if (!unique.length) return;
+    const details = node("details", null, "results-notes");
+    details.appendChild(node("summary", heading));
+    const list = node("ul");
+    unique.forEach(value => list.appendChild(node("li", value)));
+    details.appendChild(list);
+    parent.appendChild(details);
+  }
+
+  function ownedLandOverview(parent, response) {
+    const owned = response.owned_land_assessment;
+    if (!owned) return;
+    const section = node("div", null, "owned-overview");
+    const status = budgetStatus(owned.budget?.status);
+    if (status) section.appendChild(node("span", status, `build-status ${String(owned.budget.status).toLowerCase().replaceAll("_", "-")}`));
+    const details = node("div", null, "owned-facts");
+    const facts = [
+      ["Estimated construction", owned.budget?.construction?.expected_lkr != null ? formatMoney(owned.budget.construction.expected_lkr) : null],
+      ["Construction budget", owned.budget?.budget_lkr != null ? formatMoney(owned.budget.budget_lkr) : null],
+      ["Expected margin", owned.budget?.expected_margin_lkr != null ? formatMoney(owned.budget.expected_margin_lkr) : null],
+    ];
+    facts.filter(([, value]) => value != null).forEach(([label, value]) => {
+      const fact = node("div", null, "owned-fact");
+      fact.append(node("span", label), node("strong", value));
+      details.appendChild(fact);
+    });
+    section.appendChild(details);
+    const budget = owned.budget?.budget_lkr;
+    const expected = owned.budget?.construction?.expected_lkr;
+    if (budget > 0 && expected != null) {
+      const ratio = expected / budget;
+      const comparison = node("div", null, "build-budget-meter");
+      comparison.appendChild(node("div", "Estimated cost against your budget", "build-budget-label"));
+      const track = node("div", null, "build-budget-track");
+      const fill = node("span", null, ratio > 1 ? "over-budget" : "");
+      fill.style.width = `${Math.min(ratio * 100, 100)}%`;
+      track.appendChild(fill);
+      comparison.append(track, node("p", `${Math.round(ratio * 100)}% of your budget`, "build-budget-caption"));
+      section.appendChild(comparison);
+    }
+    noteList(section, "Things to confirm", considerationsFor(owned));
+    decisionDetails(section, owned);
+    noteList(section, "Next steps", owned.next_steps);
+    const files = response.presentation?.owned_plan?.files;
+    if (files) {
+      const actions = node("div", null, "pick-actions");
+      actions.appendChild(fileDownloadButton("Download all floors", files.zip, files.png?.length));
+      actions.appendChild(fileDownloadButton("Download DXF", files.dxf));
+      section.appendChild(actions);
+    }
+    parent.appendChild(section);
+  }
+
+  function comparisonSummary(parent, response) {
+    const comparisons = response.comparisons || [];
+    if (!comparisons.length) return;
+    const names = new Map([...(response.recommendations || []), ...(response.alternatives || [])]
+      .map(value => [value.listing_id, value.title]));
+    const details = node("details", null, "results-notes comparison-list");
+    details.appendChild(node("summary", "Compare top options"));
+    const list = node("ul");
+    comparisons.forEach(value => {
+      const first = names.get(value.first_listing_id) || "First property";
+      const second = names.get(value.second_listing_id) || "Second property";
+      const messages = [`${first} compared with ${second}.`];
+      if (value.score_difference != null) {
+        const difference = value.score_difference;
+        messages.push(difference === 0 ? "The options have the same decision-support score." :
+          `The first option scores ${Math.abs(difference).toFixed(2)} points ${difference > 0 ? "higher" : "lower"}.`);
+      }
+      if (value.expected_cost_difference_lkr != null) {
+        const difference = value.expected_cost_difference_lkr;
+        messages.push(difference === 0 ? "The options have the same expected cost." :
+          `The first option's expected cost is approximately ${formatMoney(Math.abs(difference))} ${difference > 0 ? "higher" : "lower"}.`);
+      }
+      messages.push(`Budget basis: ${budgetBasis(value.budget_basis)}.`);
+      list.appendChild(node("li", messages.join(" ")));
+    });
+    details.appendChild(list);
+    parent.appendChild(details);
+  }
+
   function render(response) {
     const root = panel();
+    const candidates = [...(response.recommendations || []), ...(response.alternatives || [])];
+    listingNames = new Map(candidates.map(item => [item.listing_id, item.title && item.title !== item.listing_id ? item.title : "this option"]));
     root.replaceChildren();
     root.classList.remove("hidden");
-    root.appendChild(el("p", "RECOMMENDATION & DECISION SUPPORT", "eyebrow"));
-    const statusHeadings = {
-      OK: "Recommendations ready",
-      NEEDS_CLARIFICATION: "More information needed",
-      NO_SUITABLE_OPTION: "No suitable option",
-      INSUFFICIENT_EVIDENCE: "Insufficient evidence",
+
+    const header = node("div", null, "result-header");
+    const headings = {
+      OK: "Places worth a closer look",
+      NEEDS_CLARIFICATION: "A little more detail will help",
+      NO_SUITABLE_OPTION: "No close matches yet",
+      INSUFFICIENT_EVIDENCE: "We need a little more detail",
     };
-    root.appendChild(el("h2", statusHeadings[response.status] || "Recommendation result"));
-    const sources = { LLM: "Grounded AI explanation", DETERMINISTIC_FALLBACK: "Deterministic fallback", DETERMINISTIC: "Deterministic only" };
-    root.appendChild(el("p", `Explanation source: ${sources[response.explanation_status] || "Unknown"}`, "muted"));
-    const evidence = response.presentation || {};
-    const coverage = response.coverage || {};
-    const coverageLimits = [
-      coverage.retrieval_truncated === true ? "Retrieval covered only part of the matching candidates" : null,
-      coverage.planning_coverage_limited === true ? "Some retrieved candidates were not assessed by planning" : null,
-    ].filter(Boolean);
-    grid(root, [
-      ["Retrieved / total matching", `${coverage.retrieved_count ?? 0} / ${coverage.total_matching_candidates ?? "Unknown"}`],
-      ["Planning-assessed candidates", coverage.planning_assessed_count ?? 0],
-      ["Eligible or conditional candidates ranked", coverage.ranked_count ?? 0],
-      ...(coverageLimits.length ? [["Coverage limits", coverageLimits.join("; ")]] : []),
-    ]);
-    const scopeNote = coverage.scope === "Best among the evaluated retrieved candidates; not the entire property market."
-      ? "Recommendation scope: based on the evaluated retrieved candidates only."
-      : coverage.scope;
-    root.appendChild(el("p", scopeNote, "muted"));
-    if (evidence.retrieval?.relaxed_filters === true) root.appendChild(el("p", "Search was broadened to find fallback options. These options were still evaluated against your original requirements.", "muted"));
-    list(root, "Warnings", response.warnings);
-    list(root, "Retrieval warnings", evidence.retrieval?.warnings);
-    list(root, "Details needed", response.clarification_questions);
+    const heading = node("div");
+    const ownedLand = Boolean(response.owned_land_assessment);
+    heading.append(node("p", ownedLand ? "YOUR BUILD" : "CURATED FOR YOU", "eyebrow"),
+      node("h2", ownedLand ? "Your build at a glance" : headings[response.status] || "Your options"));
+    header.appendChild(heading);
+    if (response.recommendations?.length) header.appendChild(node("span", `${response.recommendations.length} picks`, "result-count"));
+    root.appendChild(header);
+
     const explanation = response.explanation;
+    if (usefulProse(explanation?.summary)) {
+      root.appendChild(node("p", usefulProse(explanation.summary), "results-intro"));
+    }
+    const guidance = node("div", null, "results-guidance");
+    const top = response.recommendations?.[0];
+    if (top) {
+      const reason = usefulProse(explanation?.top_recommendation_reason,
+        [...keyStrengths(top), ...(top.trade_offs || [])]) || structuredReason(top);
+      noteList(guidance, "Why this is recommended", [reason]);
+    }
     if (explanation) {
-      root.appendChild(el("h3", "Recommendation explanation"));
-      root.appendChild(el("p", explanation.summary));
-      if (explanation.top_recommendation_reason) root.appendChild(el("p", explanation.top_recommendation_reason));
-      list(root, "Comparison explanation", explanation.comparison_summary);
-      details(root, "Explanation warnings and limitations", explanation.warnings);
-      list(root, "Alternative considerations", explanation.alternatives);
-      list(root, "Next steps", explanation.next_steps);
-      root.appendChild(el("p", explanation.explanation_scope, "muted"));
+      noteList(guidance, "Comparison explanation", (explanation.comparison_summary || []).map(value => usefulComparison(value, response.comparisons)).filter(Boolean).slice(0, 2));
+      noteList(guidance, "Next steps", actionSteps(explanation.next_steps));
     }
-    const raw = new Map((evidence.properties || []).map(p => [p.listing_id, p]));
-    const options = new Map((evidence.land_house_options || []).map(o => [o.property.listing_id, o]));
-    const explanations = new Map((explanation?.properties || []).map(p => [p.listing_id, p]));
+    assessmentCoverage(guidance, response.coverage);
+    noteList(guidance, "Important notes", importantNotes(response.owned_land_assessment ? [response.owned_land_assessment] : candidates,
+      [...(response.warnings || []), ...(explanation?.warnings || [])]));
+    noteList(guidance, "More information needed", response.clarification_questions);
+
+    const properties = new Map((response.presentation?.properties || []).map(value => [value.listing_id, value]));
+    const options = new Map((response.presentation?.land_house_options || []).map(value => [value.property?.listing_id, value]));
+    const explanations = new Map((explanation?.properties || []).map(value => [value.listing_id, value]));
+
     if (response.recommendations?.length) {
-      const cards = el("div", null, "a4-cards");
-      response.recommendations.forEach(item => cards.appendChild(recommendationCard(item, raw.get(item.listing_id), options.get(item.listing_id), explanations.get(item.listing_id), true)));
+      const cards = node("div", null, "pick-grid");
+      const featureLayout = response.recommendations.length === 3 && !response.presentation?.land_house_options?.length;
+      if (featureLayout) cards.dataset.layout = "feature";
+      else if (response.presentation?.land_house_options?.length) cards.dataset.layout = "plan";
+      else cards.dataset.layout = "standard";
+      response.recommendations.forEach((item, index) => {
+        cards.appendChild(optionDetails(item, properties.get(item.listing_id), options.get(item.listing_id), explanations.get(item.listing_id), index, false, featureLayout && index === 0));
+      });
       root.appendChild(cards);
-    } else if (!response.owned_land_assessment) {
-      root.appendChild(el("p", "No final property shortlist is available. Review the status, warnings and alternatives.", "empty-text"));
     }
+
+    ownedLandOverview(root, response);
+    comparisonSummary(root, response);
+
     if (response.alternatives?.length) {
-      const alternatives = el("details", null, "a4-details");
-      alternatives.appendChild(el("summary", `Other evaluated candidates (${response.alternatives.length}) — may violate requirements or lack evidence`));
-      const cards = el("div", null, "a4-cards");
-      response.alternatives.forEach(item => cards.appendChild(recommendationCard(item, raw.get(item.listing_id), options.get(item.listing_id), explanations.get(item.listing_id), false)));
-      alternatives.appendChild(cards);
-      root.appendChild(alternatives);
+      const details = node("details", null, "alternative-list");
+      details.appendChild(node("summary", `Other options to consider (${response.alternatives.length})`));
+      const cards = node("div", null, "pick-grid");
+      if (response.presentation?.land_house_options?.length) cards.dataset.layout = "plan";
+      response.alternatives.forEach((item, index) => {
+        cards.appendChild(optionDetails(item, properties.get(item.listing_id), options.get(item.listing_id), explanations.get(item.listing_id), index, true));
+      });
+      details.appendChild(cards);
+      root.appendChild(details);
     }
-    const owned = response.owned_land_assessment;
-    if (owned) {
-      root.appendChild(el("h3", "Owned-land assessment"));
-      root.appendChild(el("p", `Assessment: ${label(owned.eligibility)}. No property ranking was performed.`));
-      budget(root, owned.budget);
-      planning(root, owned.planning);
-      list(root, "Unmet requirements", owned.unmet_requirements);
-      list(root, "Uncertainty", owned.uncertainty);
-      list(root, "Limitations", owned.limitations);
-      list(root, "Suggested next steps", owned.next_steps);
-      const files = evidence.owned_plan?.files;
-      if (files) {
-        const links = el("div", null, "file-links");
-        [["All plans ZIP", files.zip], ["DXF", files.dxf], ["Plan JSON", files.json], ["Plan summary", files.summary]].forEach(([name, path]) => links.appendChild(fileDownloadButton(name, path)));
-        root.appendChild(links);
-      }
+
+    if (guidance.childElementCount) root.appendChild(guidance);
+
+    if (!response.recommendations?.length && !response.owned_land_assessment) {
+      root.appendChild(node("p", "Try a broader area or budget to see more options.", "empty-text"));
     }
-    list(root, "Deterministic comparisons", (response.comparisons || []).map(c =>
-      `${c.first_listing_id} versus ${c.second_listing_id}: score difference ${Number(c.score_difference).toFixed(2)}; expected cost difference ${formatMoney(c.expected_cost_difference_lkr)} (${label(c.budget_basis)}).`));
   }
-  window.Agent4UI = { render, reset: () => { panel().replaceChildren(); panel().classList.add("hidden"); } };
+
+  window.Agent4UI = {
+    render,
+    reset() {
+      panel().replaceChildren();
+      panel().classList.add("hidden");
+    },
+  };
 })();

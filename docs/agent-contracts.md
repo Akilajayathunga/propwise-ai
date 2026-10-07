@@ -1,6 +1,6 @@
 # Agent Contracts
 
-This document records conceptual interfaces only. Concrete schemas and implementations will be added later.
+This document summarizes the agent boundaries. Concrete Pydantic contracts now exist in `backend/app/schemas/`; the Agent 4 section below distinguishes internal evidence from public user input.
 
 ## Agent 1: Requirement & Intent Understanding
 
@@ -12,7 +12,7 @@ Output: structured requirements describing intent, budget, location preferences,
 
 Input: structured property requirements.
 
-Output: ranked retrieved properties with relevant analysis signals.
+Output: relevance-ranked retrieved properties with analysis signals. This is upstream retrieval ordering, not Agent 4's final decision-support ranking; Agent 2 behavior is preserved.
 
 ## Agent 3: Home Planning & Budget Estimation
 
@@ -38,8 +38,34 @@ Budget estimation uses `data/knowledge/construction_costs.json`. If verified con
 
 ## Agent 4: Recommendation & Decision Support
 
-Input: validated outputs from previous agents.
+Internal input: `RecommendationContext` pairs confirmed requirements with the
+server-obtained `Agent2Result`, `LandHouseEvaluationResponse` or `PlanningResponse`
+required by the workflow. Public input is `RecommendationRequest`: requirements,
+bounded `top_k`, `explanation_enabled`, and optional owned-land site inputs.
+Clients cannot supply trusted candidate scores, prices, planning outcomes or rankings.
 
-Output: final recommendation and decision-support summary.
+Output: `RecommendationResponse` contains deterministic `RecommendationItem`
+entries, `CriterionAssessment` breakdowns, alternatives, comparisons,
+`CandidateCoverage`, and/or `OwnedLandAssessment`. The public
+`RecommendationAPIResponse` adds safe presentation data and clarification fields.
+Decision statuses are `OK`, `NEEDS_CLARIFICATION`, `NO_SUITABLE_OPTION` and
+`INSUFFICIENT_EVIDENCE`.
 
-No agent schemas or business logic are implemented yet.
+The response `explanation_status` is `LLM`, `DETERMINISTIC_FALLBACK`, or
+`DETERMINISTIC`. When disabled, the explanation attachment is `null`; otherwise
+its source records `LLM` or `DETERMINISTIC_FALLBACK`.
+`ExplanationDraft` is validated before rendering; evidence references, candidate
+identity, rank, score, eligibility, budget and planning echoes are checked.
+Gemini synthesizes grounded prose only. Failures retain the deterministic result.
+Human-readable enum formatting changes display prose, not structured enum values.
+
+The public deterministic `top_k` allows 1-10 recommendations. The explanation-only
+bound of 5 recommendations + 2 alternatives does not change that response.
+
+Sources: `schemas/recommendation.py`, `schemas/recommendation_api.py` and
+`agents/agent4_recommendation/explanation_models.py` under `backend/app/`.
+See [Phase 2](agent4-phase2.md) and [Phase 3](agent4-phase3.md) for details.
+
+Historical note: the foundation version of this document contained conceptual
+interfaces only; its statement that no schemas or business logic existed no longer
+applies to the implemented demo.
